@@ -1,0 +1,153 @@
+[project]
+authors = [
+    { name = "Christian Schlichtherle" },
+]
+dependencies = [
+    "flechtwerk[mqtt]==0.7.1",
+    "httpx>=0.27",
+]
+description = "Complete, runnable examples for the Flechtwerk stream-processing framework, pinned to a released version and wired to a batteries-included stack."
+license = { text = "MIT" }
+maintainers = [
+    { name = "b.sure GmbH" },
+]
+name = "flechtwerk-examples"
+readme = "README.md"
+requires-python = "==3.14.*"
+version = "0"
+
+[project.urls]
+Framework = "https://github.com/bsure-analytics/flechtwerk"
+Homepage = "https://github.com/bsure-analytics/flechtwerk-examples"
+Issues = "https://github.com/bsure-analytics/flechtwerk-examples/issues"
+Repository = "https://github.com/bsure-analytics/flechtwerk-examples"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6",
+    "poethepoet>=0.29",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24",
+    "testcontainers[clickhouse,kafka,mqtt]>=4.8",
+]
+
+[tool.uv]
+# This repo is a set of runnable examples, not a distributable library:
+# nothing here is built or published, so uv skips packaging the project
+# itself. Examples are imported from the repo root (see tool.pytest pythonpath).
+package = false
+
+[tool.coverage.report]
+exclude_lines = [
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "pragma: no cover",
+]
+show_missing = true
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "*/tests/*",
+    "*_test.py",
+]
+source = ["examples"]
+
+[tool.poe.tasks]
+down = { cmd = "docker compose down --volumes", help = "Stop the shared stack and delete its volumes" }
+up = { cmd = "docker compose up --detach --wait", help = "Start the shared stack and block until every service is healthy" }
+test = { cmd = "pytest", help = "Run the Docker-free tiers (pure-logic + runner-fake)" }
+test-all = { cmd = "pytest -m 'integration or not integration'", help = "Run every tier including integration (needs Docker)" }
+test-integration = { cmd = "pytest -m integration", help = "Run only the integration tier (needs Docker)" }
+setup-adsb = { cmd = "python -m examples.adsb_flight_tracker.setup", help = "Create the ADS-B topics, seed a region, and apply the ClickHouse schema" }
+run-adsb-ingest = { cmd = "python -m examples.adsb_flight_tracker ingest", help = "Run ADS-B stage 1 alone: ingest the raw adsb.lol feed to adsb.raw" }
+run-adsb-enrich = { cmd = "python -m examples.adsb_flight_tracker enrich", help = "Run ADS-B stage 2 alone: unroll + live-enrich to adsb.aircraft/events/cells" }
+run-adsb-conflict = { cmd = "python -m examples.adsb_flight_tracker conflict", help = "Run ADS-B stage 3 alone: baby-TCAS conflict detection over adsb.cells" }
+setup-sink = { cmd = "python -m examples.clickhouse_sink.setup", help = "Apply the ClickHouse sink schema (dedup-enabled positions table)" }
+run-sink = { cmd = "python -m examples.clickhouse_sink", help = "Run the ClickHouse sink stage against the shared stack" }
+setup-chaos = { cmd = "python -m examples.chaos_harness.setup", help = "Create the chaos topics, produce input, apply the ClickHouse schema" }
+run-chaos = { cmd = "python -m examples.chaos_harness.chaos", help = "Run the chaos harness: SIGKILL the transformer mid-batch, on a loop" }
+verify-chaos = { cmd = "python -m examples.chaos_harness.verify", help = "Assert zero duplicates and zero gaps downstream (EOS proof)" }
+setup-fermentation = { cmd = "python -m examples.fermentation_monitor.setup", help = "Create the fermentation topics, seed batches, apply the ClickHouse schema" }
+run-fermentation = { cmd = "python -m examples.fermentation_monitor bridge", help = "Run the MQTT->Kafka bridge (ACK after Kafka)" }
+run-fermentation-monitor = { cmd = "python -m examples.fermentation_monitor monitor", help = "Run the stateful gravity monitor (stall + bottling)" }
+simulate-fermentation = { cmd = "python -m examples.fermentation_monitor.simulator", help = "Publish simulated hydrometer readings over MQTT (no hardware)" }
+
+[tool.poe.tasks.run-adsb]
+help = "Run all three ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# A poor-man's supervisor, the local stand-in for what an orchestrator like
+# Kubernetes does in prod. Each stage runs in its own restart loop: `until` re-runs
+# it whenever it exits non-zero — a crash — after a 10 s backoff (state restores
+# from the changelog). The stages are plain `python -m` children in *this* shell's
+# process group (no `uv run`/`poe` nesting, which would reparent them elsewhere). poe
+# runs the task shell in its own group and delivers Ctrl-C to the shell, so the trap
+# does the teardown: `kill 0` signals the WHOLE group — every stage plus any supervisor
+# mid-backoff `sleep`. The stages are *grandchildren* of the backgrounded supervisors,
+# so `kill $(jobs -p)` would reach only the supervisors and ORPHAN the stages (leftover
+# python processes) — `kill 0` is what avoids that. `trap "" TERM` first makes this shell
+# ignore the TERM its own `kill 0` sends, so it survives to `exit 0`; that clean exit is
+# what stops poe from reporting "Failed to get PID of child process (ESRCH)" and aborting
+# the `adsb` sequence (a naked `kill 0` SIGTERMs the shell too → non-zero exit → those
+# errors). Both failure modes were reproduced with a setsid harness before this landed.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-adsb] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in ingest enrich conflict; do
+  supervise python -m examples.adsb_flight_tracker $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.adsb]
+help = "Quickstart: set up ADS-B topics/schema, then run all three stages (restart-on-crash)"
+sequence = ["setup-adsb", "run-adsb"]
+
+[tool.poe.tasks.chaos]
+help = "Quickstart: set up, SIGKILL-loop the transformer, then assert exactly-once — the whole EOS proof in one command"
+sequence = ["setup-chaos", "run-chaos", "verify-chaos"]
+
+[tool.poe.tasks.run-fermentation-all]
+help = "Run the whole fermentation demo: bridge + monitor + the hydrometer simulator (no hardware), restart-on-crash"
+# Same poor-man's supervisor as run-adsb (see its notes on the process-group /
+# Ctrl-C handling): plain `python -m` children in this shell's group, and a trap that
+# `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned — with `trap "" TERM`
+# so this shell survives its own `kill 0` and exits 0 for poe. The bridge and monitor
+# run forever and restart on crash; the simulator waits a moment so the bridge has
+# subscribed, then runs its finite gravity curve once and exits (its loop stops on
+# success — exit 0), while `wait` blocks on the two long-runners.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-fermentation] $* exited $? — restarting in 10s"; sleep 10; done; }
+supervise python -m examples.fermentation_monitor bridge &
+supervise python -m examples.fermentation_monitor monitor &
+{ sleep 5; supervise python -m examples.fermentation_monitor.simulator; } &
+wait
+"""
+
+[tool.poe.tasks.fermentation]
+help = "Quickstart: set up fermentation topics/schema, then run the whole demo (bridge + monitor + simulator)"
+sequence = ["setup-fermentation", "run-fermentation-all"]
+
+[tool.poe.tasks.cov]
+help = "Run every tier with coverage, then print the report"
+sequence = [
+    { cmd = "coverage run -m pytest -m 'integration or not integration'" },
+    { cmd = "coverage report" },
+]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib -m 'not integration'"
+asyncio_mode = "auto"
+filterwarnings = [
+    # testcontainers modules use their own deprecated @wait_container_is_ready
+    # / wait_for_logs(...) helpers internally — not something we can fix from
+    # the call site. Mute only those specific module-scoped warnings.
+    "ignore::DeprecationWarning:testcontainers.mqtt",
+    "ignore::DeprecationWarning:testcontainers.clickhouse",
+]
+markers = [
+    "integration: tests that require Docker-based testcontainers (Kafka, Mosquitto, ClickHouse; run with `-m integration`)",
+]
+pythonpath = ["."]
+testpaths = ["examples"]

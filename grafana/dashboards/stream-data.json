@@ -1,0 +1,41 @@
+{
+  "uid": "flechtwerk-stream",
+  "title": "Flechtwerk — Stream Data (ClickHouse)",
+  "tags": ["flechtwerk"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "This dashboard reads the shared **ClickHouse** store via the official datasource. It ships a datasource smoke test (the table below); each example extends it with its own panels — the ADS-B tracker adds live traffic, the sink example adds row-count and dedup panels."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Tables in the flechtwerk database",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT name AS table, total_rows AS rows, formatReadableSize(total_bytes) AS size, engine FROM system.tables WHERE database = 'flechtwerk' ORDER BY name"
+        }
+      ]
+    }
+  ]
+}

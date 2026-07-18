@@ -1,0 +1,53 @@
+{
+  "uid": "flechtwerk-fermentation",
+  "title": "Flechtwerk — Fermentation Monitor",
+  "tags": ["flechtwerk", "fermentation"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Gravity by batch",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 12, "w": 18, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 3, "custom": { "drawStyle": "line", "lineWidth": 2, "pointSize": 5, "showPoints": "always" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "min"] }, "tooltip": { "mode": "multi" } },
+      "transformations": [
+        { "id": "partitionByValues", "options": { "fields": ["batch"], "keepFields": false } }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "timeseries",
+          "format": 2,
+          "rawSql": "SELECT at AS time, batch, gravity FROM flechtwerk.fermentation_readings ORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Alerts",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 12, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "at", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT at, batch, kind, round(gravity, 3) AS gravity FROM flechtwerk.fermentation_alerts ORDER BY at DESC"
+        }
+      ]
+    }
+  ]
+}

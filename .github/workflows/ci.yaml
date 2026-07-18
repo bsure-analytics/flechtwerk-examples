@@ -1,0 +1,13 @@
+jobs:
+  test:
+    uses: ./.github/workflows/test.yaml
+name: CI
+permissions:
+  contents: read
+on:
+  # Push runs CI on the trunk; PRs run it for everything else. A branch push with
+  # an open PR is covered by the pull_request event, so the expensive Docker suite
+  # runs once, not twice.
+  pull_request:
+  push:
+    branches: [ main ]

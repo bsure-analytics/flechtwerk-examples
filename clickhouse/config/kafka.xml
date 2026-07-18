@@ -1,0 +1,13 @@
+<clickhouse>
+    <!--
+      Make every ClickHouse Kafka-engine consumer read COMMITTED. Flechtwerk
+      stages produce transactionally (exactly-once), and a downstream consumer
+      must skip aborted transactions or it double-counts. This maps to the
+      librdkafka property isolation.level=read_committed. The chaos harness
+      (example 3) relies on it for its "zero duplicates" ClickHouse query; it
+      also removes example 1's read_uncommitted caveat.
+    -->
+    <kafka>
+        <isolation_level>read_committed</isolation_level>
+    </kafka>
+</clickhouse>

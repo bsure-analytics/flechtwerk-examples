@@ -1,0 +1,223 @@
+# Shared, batteries-included stack for every example.
+#
+#   docker compose up --wait     # or: uv run poe up
+#   docker compose down --volumes # or: uv run poe down
+#
+# Examples run on the host (uv run poe run-<example>) and connect to the
+# broker at localhost:9092, MQTT at localhost:1883, and ClickHouse at
+# localhost:8123. Prometheus scrapes each stage's metrics endpoint back on
+# the host via host.docker.internal (see prometheus/prometheus.yml).
+#
+# Every published port binds to 127.0.0.1 on purpose: these are demo services
+# with no real auth (passwordless ClickHouse, anonymous MQTT, anonymous-Admin
+# Grafana, PLAINTEXT Kafka), so they must not be reachable from the LAN. The
+# single-machine workflow above is unaffected. Do not change these to 0.0.0.0.
+
+name: flechtwerk-examples
+
+services:
+  clickhouse:
+    healthcheck:
+      interval: 5s
+      retries: 20
+      start_period: 5s
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null 2>&1 || exit 1"]
+      timeout: 5s
+    image: clickhouse/clickhouse-server:25.8
+    ports:
+      - "127.0.0.1:8123:8123" # HTTP (clickhouse-connect from the host)
+      - "127.0.0.1:9000:9000" # native (clickhouse-client, the Grafana datasource)
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ./clickhouse/config:/etc/clickhouse-server/config.d:ro
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+      - ./clickhouse/users.d/open-default.xml:/etc/clickhouse-server/users.d/open-default.xml:ro
+      - clickhouse:/var/lib/clickhouse
+
+  grafana:
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      # Anonymous visitors are Admin, so they can explore and edit dashboards —
+      # but provisioned dashboards still cannot be saved (allowUiUpdates: false
+      # in the dashboards provider): editing one prompts a "Save as copy", and
+      # the JSON files under grafana/dashboards/ stay the source of truth. Same
+      # behavior as our clustered Grafana. (This holds only when the dashboards
+      # are cleanly provisioned — a drifted grafana volume can turn them
+      # into savable DB copies; `docker compose down -v` resets that.)
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_LOG_LEVEL: warn
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    healthcheck:
+      interval: 10s
+      retries: 15
+      start_period: 20s
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      timeout: 5s
+    image: grafana/grafana:13.0.3
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana:/var/lib/grafana
+
+  kafka:
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:19092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@localhost:9093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:9093,EXTERNAL://:9092,INTERNAL://:19092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_MS: -1
+      KAFKA_NODE_ID: 0
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    image: apache/kafka:4.3.1
+    ports:
+      - "127.0.0.1:9092:9092" # EXTERNAL listener for host-run examples
+    volumes:
+      - kafka:/var/lib/kafka/data
+
+  # One-shot: disable Eligible Leader Replicas (KIP-966) once the broker is healthy.
+  # ELR is inert at replication.factor=1, but with aiokafka 0.14.0 it makes every EOS
+  # transformer log spurious, retriable NotEnoughReplicasError on transactional produce
+  # (benign — the produce is retried and exactly-once holds — but noisy). Turning it off
+  # silences that for every stage at zero behavioural cost on a single broker. See
+  # https://github.com/aio-libs/aiokafka/issues/1172. The downgrade is online and
+  # idempotent, so it also re-applies after `down -v` wipes the feature state; stages
+  # run on the host after `up` completes, so they always connect with ELR already off.
+  kafka-features:
+    depends_on:
+      kafka:
+        condition: service_healthy
+    image: apache/kafka:4.3.1
+    command:
+      - /opt/kafka/bin/kafka-features.sh
+      - --bootstrap-server
+      - kafka:19092
+      - downgrade
+      - --feature
+      - eligible.leader.replicas.version=0
+
+  kafka-init:
+    command: chown -R 1000:1000 /var/lib/kafka/data
+    image: alpine:3.23
+    user: root
+    volumes:
+      - kafka:/var/lib/kafka/data
+
+  # Kafbat UI — the web UI for Kafka. Named kafka-ui here to match the image path.
+  kafka-ui:
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-features:
+        # Gate on the ELR downgrade so `up --wait` returns only after it completed
+        # (and fails loudly if it errored); also gives kafka-features a completion
+        # consumer so it reports "Exited", not "Healthy". See the kafka-features note.
+        condition: service_completed_successfully
+    environment:
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      KAFKA_CLUSTERS_0_NAME: local
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  mosquitto:
+    healthcheck:
+      interval: 5s
+      retries: 10
+      start_period: 3s
+      test: ["CMD-SHELL", "mosquitto_sub -i healthcheck -t healthcheck -E || exit 1"]
+      timeout: 5s
+    image: eclipse-mosquitto:2.1.2-alpine
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto:/mosquitto/data
+
+  nominatim:
+    # OPT-IN self-hosted geocoder for the ADS-B example — NOT part of the default stack:
+    #   docker compose --profile geocoder up -d nominatim
+    # The public Nominatim rate-limits (429) the example's systematic per-position
+    # reverse-geocoding; this is the "run your own" answer. First boot imports an OSM
+    # extract before it serves (a few minutes for the ~196 MB London extract below) —
+    # the healthcheck's start_period covers that. Point the enrich stage at it with
+    # (see enrich.py):
+    #   AdsbEnrich(enricher=WikidataNominatimEnricher(nominatim_url="http://localhost:8091/reverse"))
+    profiles: ["geocoder"]
+    image: mediagis/nominatim:5.3
+    environment:
+      # A ~196 MB BBBike extract of GREATER LONDON — small, fast to import, and the demo
+      # polls London. Aircraft out toward the 100 nm poll radius fall outside it and just
+      # don't reverse-geocode (best-effort — the stage handles the miss). For wider
+      # coverage swap in Geofabrik's Great Britain (~2.1 GB, much longer import):
+      #   https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
+      # (Geofabrik has no standalone England extract — the full GB file is the option.)
+      PBF_URL: https://download.bbbike.org/osm/bbbike/London/London.osm.pbf
+      IMPORT_STYLE: address        # smallest/fastest import style — enough for country + place
+      NOMINATIM_PASSWORD: flechtwerk
+    ports:
+      - "127.0.0.1:8091:8080"      # host 8091 (8080 is Kafbat UI); the API serves on 8080 in-container
+    shm_size: "1gb"                # the import needs shared memory
+    volumes:
+      # Persist the import so a restart doesn't re-run it. The path tracks the image's
+      # Postgres major — confirm it for the pinned tag (mediagis README) if you re-pin.
+      - nominatim:/var/lib/postgresql/16/main
+    healthcheck:
+      # /status returns 200 once the import has finished and the API is live.
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/status || exit 1"]
+      interval: 15s
+      retries: 40
+      start_period: 20m           # generous headroom for the import; the London extract is a few minutes
+      timeout: 10s
+
+  prometheus:
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    extra_hosts:
+      # Lets Prometheus (in the container) scrape stages running on the host.
+      # Docker Desktop provides this name already; the mapping makes it work
+      # on Linux too.
+      - "host.docker.internal:host-gateway"
+    image: prom/prometheus:v3.13.1
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+
+volumes:
+  clickhouse:
+  grafana:
+  kafka:
+  mosquitto:
+  nominatim:
+  prometheus:

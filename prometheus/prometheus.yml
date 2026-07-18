@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Flechtwerk stages run on the host (uv run poe run-<example>) and expose
+  # prometheus-client metrics on a per-example port. Prometheus reaches the
+  # host from inside the container via host.docker.internal (see the
+  # extra_hosts mapping on the prometheus service). Each target stays "down"
+  # until you start the matching example — that is expected, not a failure.
+  - job_name: flechtwerk
+    static_configs:
+      # adsb_flight_tracker runs three host stages under one example label: the
+      # ingest extractor (9101), the enrich transformer (9105), and the conflict
+      # transformer (9106).
+      - targets: ["host.docker.internal:9101"]
+        labels: { example: adsb_flight_tracker }
+      - targets: ["host.docker.internal:9105"]
+        labels: { example: adsb_flight_tracker }
+      - targets: ["host.docker.internal:9106"]
+        labels: { example: adsb_flight_tracker }
+      - targets: ["host.docker.internal:9102"]
+        labels: { example: clickhouse_sink }
+      # (chaos_harness runs metrics-off — its rapid SIGKILL restarts would race
+      #  to rebind a scrape port; the EOS proof needs no metrics.)
+      # fermentation_monitor runs two host stages under one example label: the
+      # bridge (extractor, 9104) and the stateful monitor (transformer, 9103).
+      - targets: ["host.docker.internal:9103"]
+        labels: { example: fermentation_monitor }
+      - targets: ["host.docker.internal:9104"]
+        labels: { example: fermentation_monitor }

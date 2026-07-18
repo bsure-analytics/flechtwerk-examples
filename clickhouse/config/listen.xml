@@ -1,0 +1,8 @@
+<clickhouse>
+    <!--
+      Listen on all interfaces so the server is reachable from the Grafana
+      container (clickhouse:9000) and from host-run examples (localhost:8123).
+      The image otherwise binds loopback only.
+    -->
+    <listen_host>0.0.0.0</listen_host>
+</clickhouse>

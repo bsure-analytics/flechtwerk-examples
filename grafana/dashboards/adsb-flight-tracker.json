@@ -1,0 +1,180 @@
+{
+  "uid": "flechtwerk-adsb",
+  "title": "Flechtwerk — ADS-B Flight Tracker",
+  "tags": ["flechtwerk", "adsb"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Live aircraft",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS live FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "geomap",
+      "title": "Live positions",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 21, "w": 18, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "basemap": { "type": "default", "name": "Basemap" },
+        "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": true },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Aircraft",
+            "location": { "mode": "auto" },
+            "config": {
+              "showLegend": false,
+              "style": {
+                "size": { "fixed": 6 },
+                "color": { "fixed": "dark-blue" },
+                "opacity": 0.7,
+                "symbol": { "fixed": "img/icons/marker/circle.svg" }
+              }
+            }
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "view": { "id": "coords", "lat": 51.4, "lon": -0.4, "zoom": 7 }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, over_country, alt_baro AS altitude, emergency, lat AS latitude, lon AS longitude FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND lat != 0 AND lon != 0"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Aircraft in view (enriched)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 21, "w": 6, "x": 18, "y": 4 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "airline" },
+            "properties": [ { "id": "links", "value": [ { "title": "Wikipedia", "url": "${__data.fields.airline_wiki}", "targetBlank": true } ] } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "type" },
+            "properties": [ { "id": "links", "value": [ { "title": "Wikipedia", "url": "${__data.fields.type_wiki}", "targetBlank": true } ] } ]
+          },
+          { "matcher": { "id": "byName", "options": "airline_wiki" }, "properties": [ { "id": "custom.hidden", "value": true } ] },
+          { "matcher": { "id": "byName", "options": "type_wiki" }, "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "ground_speed", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, over_country AS country, alt_baro AS altitude, round(gs) AS ground_speed, round(vertical_rate) AS vertical_rate, airline_wiki, type_wiki FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 ORDER BY gs DESC"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Emergencies now",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS emergencies FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND emergency = 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Fastest now",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "velocityknots", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT round(max(gs)) AS fastest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Highest now",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "lengthft", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT max(toInt32OrNull(toString(alt_baro))) AS highest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Countries in view",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT uniqExact(over_country) AS countries FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND over_country != ''"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync
+      # GitHub-hosted ubuntu runners ship a working Docker daemon, so the
+      # integration tier (testcontainers: Kafka, Mosquitto, ClickHouse) runs
+      # here too — the examples double as an integration test of the published
+      # flechtwerk package as a consumer would use it.
+      - name: Run every tier
+        run: uv run poe test-all
+    strategy:
+      fail-fast: false
+      matrix:
+        # The examples deliberately pin the current flechtwerk release and its
+        # Python floor (3.14) — a single version, not the framework's 3.12–3.14
+        # support matrix.
+        python-version: ${{ fromJson(inputs.python-versions) }}
+name: Reusable Test Workflow
+permissions:
+  contents: read
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        type: string
+        default: '["3.14"]'

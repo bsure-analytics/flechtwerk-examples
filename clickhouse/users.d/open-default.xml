@@ -1,0 +1,17 @@
+<clickhouse>
+    <!--
+      Local-demo relaxation. The image locks the passwordless `default` user
+      to loopback, which blocks host-run examples (clickhouse-connect on
+      localhost:8123) and the Grafana datasource (from its own container).
+      `replace="replace"` swaps that restriction for "any network" so the
+      shared stack is reachable. This is a demo convenience — do not copy it
+      into anything exposed beyond your machine.
+    -->
+    <users>
+        <default>
+            <networks replace="replace">
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>
