@@ -1,6 +1,6 @@
 -- ClickHouse sink for the chaos harness verifier.
 --
--- The Kafka engine consumes chaos.output; the stack configures it to read
+-- The Kafka engine consumes chaos-output; the stack configures it to read
 -- COMMITTED (clickhouse/config/kafka.xml), so aborted transactions from a
 -- SIGKILLed transformer are never ingested. The verifier's one query over
 -- chaos_output is therefore a true zero-duplicates / zero-gaps check.
@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS flechtwerk.chaos_output_queue
 ENGINE = Kafka
 SETTINGS
     kafka_broker_list = 'kafka:19092',
-    kafka_topic_list = 'chaos.output',
-    kafka_group_name = 'clickhouse-chaos',
+    kafka_topic_list = 'chaos-output',
+    kafka_group_name = 'chaos-output-clickhouse',
     kafka_format = 'JSONEachRow',
     kafka_num_consumers = 1,
     input_format_skip_unknown_fields = 1;

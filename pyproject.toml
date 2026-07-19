@@ -60,7 +60,9 @@ up = { cmd = "docker compose up --detach --wait", help = "Start the shared stack
 test = { cmd = "pytest", help = "Run the Docker-free tiers (pure-logic + runner-fake)" }
 test-all = { cmd = "pytest -m 'integration or not integration'", help = "Run every tier including integration (needs Docker)" }
 test-integration = { cmd = "pytest -m integration", help = "Run only the integration tier (needs Docker)" }
-setup-adsb = { cmd = "python -m examples.adsb_flight_tracker.setup", help = "Create the ADS-B topics, seed a region, and apply the ClickHouse schema" }
+setup-adsb = { cmd = "python -m examples.adsb_flight_tracker.setup", help = "Create the ADS-B topics and apply the ClickHouse schema (no region seeded — use request-region)" }
+request-region = { cmd = "python -m examples.adsb_flight_tracker.request", help = "Request a region to track: uv run poe request-region \"London\" [radius_nm]" }
+run-adsb-boundaries = { cmd = "python -m examples.adsb_flight_tracker boundaries", help = "Run ADS-B stage 0 alone: load the world + per-country reverse-geocoding maps (ClickHouse polygon dictionaries)" }
 run-adsb-ingest = { cmd = "python -m examples.adsb_flight_tracker ingest", help = "Run ADS-B stage 1 alone: ingest the raw adsb.lol feed to adsb.raw" }
 run-adsb-enrich = { cmd = "python -m examples.adsb_flight_tracker enrich", help = "Run ADS-B stage 2 alone: unroll + live-enrich to adsb.aircraft/events/cells" }
 run-adsb-conflict = { cmd = "python -m examples.adsb_flight_tracker conflict", help = "Run ADS-B stage 3 alone: baby-TCAS conflict detection over adsb.cells" }
@@ -75,7 +77,7 @@ run-fermentation-monitor = { cmd = "python -m examples.fermentation_monitor moni
 simulate-fermentation = { cmd = "python -m examples.fermentation_monitor.simulator", help = "Publish simulated hydrometer readings over MQTT (no hardware)" }
 
 [tool.poe.tasks.run-adsb]
-help = "Run all three ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
 # A poor-man's supervisor, the local stand-in for what an orchestrator like
 # Kubernetes does in prod. Each stage runs in its own restart loop: `until` re-runs
 # it whenever it exits non-zero — a crash — after a 10 s backoff (state restores
@@ -93,14 +95,14 @@ help = "Run all three ADS-B stages together, restarting any that crashes (a poor
 shell = """
 trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
 supervise() { until "$@"; do echo "[run-adsb] $* exited $? — restarting in 10s"; sleep 10; done; }
-for stage in ingest enrich conflict; do
+for stage in boundaries ingest enrich conflict; do
   supervise python -m examples.adsb_flight_tracker $stage &
 done
 wait
 """
 
 [tool.poe.tasks.adsb]
-help = "Quickstart: set up ADS-B topics/schema, then run all three stages (restart-on-crash)"
+help = "Quickstart: set up ADS-B topics/schema, then run all four stages (restart-on-crash)"
 sequence = ["setup-adsb", "run-adsb"]
 
 [tool.poe.tasks.chaos]

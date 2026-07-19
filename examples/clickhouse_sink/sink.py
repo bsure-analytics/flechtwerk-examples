@@ -1,6 +1,6 @@
 """ClickHouse sink stage — the honest-semantics counterpart to example 1.
 
-Example 1 sinks `adsb.aircraft` with ClickHouse's Kafka *engine* — the shortcut.
+Example 1 sinks `adsb-aircraft` with ClickHouse's Kafka *engine* — the shortcut.
 This is the pattern being taught instead: a Flechtwerk **transformer** whose work
 is a ClickHouse insert. The teaching point is right here in `transform`:
 
@@ -31,7 +31,7 @@ from examples.adsb_flight_tracker.attributes import (
     HEX,
     IS_DELETED,
     POLLED_AT,
-    REGION,
+    REQUESTED_REGION,
     SRC_ALTITUDE,
     SRC_CALLSIGN,
     SRC_GROUND_SPEED,
@@ -39,7 +39,7 @@ from examples.adsb_flight_tracker.attributes import (
     SRC_LON,
 )
 
-INPUT_TOPIC = "adsb.aircraft"
+INPUT_TOPIC = "adsb-aircraft"
 TABLE = "adsb_positions"
 CLICKHOUSE_URL = "http://localhost:8123"
 DATABASE = "flechtwerk"
@@ -82,7 +82,7 @@ def to_rows(msg: IncomingMessage) -> list[dict[str, Any]]:
         "callsign": (event.get(SRC_CALLSIGN) or "").strip(),
         "lat": float(lat),
         "lon": float(lon),
-        "region": event[REGION],
+        "requested_region": event[REQUESTED_REGION],
         "polled_at": event[POLLED_AT].isoformat(),
         "source_partition": msg.partition,
         "source_offset": msg.offset,
@@ -125,7 +125,7 @@ class HttpClickHouseWriter:
 
 
 class AdsbSink(Transformer):
-    """Sinks `adsb.aircraft` position events into ClickHouse, idempotently.
+    """Sinks `adsb-aircraft` position events into ClickHouse, idempotently.
 
     A pure sink: it emits nothing to Kafka and keeps no state, so its task
     transaction only commits the input offset. The insert is the side effect

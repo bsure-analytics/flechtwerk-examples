@@ -37,7 +37,7 @@ from examples.adsb_flight_tracker.attributes import (
     POLLED_AT,
     POSITIONS,
     RADIUS,
-    REGION,
+    REQUESTED_REGION,
     RESPONSE,
     SRC_ALTITUDE,
     SRC_CALLSIGN,
@@ -47,6 +47,7 @@ from examples.adsb_flight_tracker.attributes import (
     TYPE_WIKI,
     VERTICAL_RATE,
 )
+from examples.adsb_flight_tracker.boundaries import boundary_rows, world_rows
 from examples.adsb_flight_tracker.conflict import detect_conflicts
 from examples.adsb_flight_tracker.enrich import (
     _airline_code,
@@ -94,7 +95,7 @@ async def _enrich(state: State, aircraft: list[dict], *, polled_at: datetime = P
     records = [Record.wrap(a) for a in aircraft]
     items = [
         item async for item in
-        project_page("london", state, records, polled_at, airline or {}, aircraft_type or {}, geo or {})
+        project_page("london", state, records, polled_at, airline or {}, aircraft_type or {}, geo or {}, set())
     ]
     messages = [i for i in items if isinstance(i, Message)]
     return messages, [i for i in items if isinstance(i, State)], items
@@ -251,7 +252,7 @@ def test_wrap_response_nests_response_config_and_metadata() -> None:
 
 def _cell_aircraft(hex_: str, lat: float, lon: float, altitude: object, at: datetime = POLLED_AT_TS) -> Record:
     # altitude is the faithful wire value — a number OR the string "ground" (ANY).
-    return Record({HEX: hex_, REGION: "london", SRC_LAT: lat, SRC_LON: lon, SRC_ALTITUDE: altitude, POLLED_AT: at})
+    return Record({HEX: hex_, REQUESTED_REGION: "london", SRC_LAT: lat, SRC_LON: lon, SRC_ALTITUDE: altitude, POLLED_AT: at})
 
 
 async def _detect(state: State, aircraft: Record, at: datetime = POLLED_AT_TS):
@@ -328,3 +329,50 @@ async def test_enrich_config_defaults_and_clamps_the_radius() -> None:
     assert (await stage.enrich_config(Config({NAME: "x", LAT: 0.0, LON: 0.0})))[RADIUS] == DEFAULT_RADIUS
     assert (await stage.enrich_config(Config({NAME: "x", LAT: 0.0, LON: 0.0, RADIUS: 9999})))[RADIUS] == MAX_RADIUS
     assert (await stage.enrich_config(Config({NAME: "x", LAT: 0.0, LON: 0.0, RADIUS: 50})))[RADIUS] == 50
+
+
+# --- boundaries: world_rows / boundary_rows (geoBoundaries GeoJSON → ClickHouse rows) ---
+
+def test_boundary_rows_normalises_a_polygon_to_a_multipolygon() -> None:
+    ring = [[6.9, 51.4], [7.1, 51.4], [7.1, 51.5], [6.9, 51.4]]
+    geojson = {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "properties": {"shapeName": "Essen"},
+         "geometry": {"type": "Polygon", "coordinates": [ring]}}]}
+
+    rows = boundary_rows(geojson, "DEU", "ADM3", 1_700_000_000)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert (row["name"], row["iso3"], row["admin_level"]) == ("Essen", "DEU", "ADM3")  # tagged by country + level
+    assert row["loaded_at"] == 1_700_000_000  # Unix seconds → the table's DateTime
+    # A Polygon is wrapped one level deeper so every row is a MultiPolygon; coordinates
+    # ride through verbatim — GeoJSON's [lon, lat] is already ClickHouse's (x, y).
+    assert row["geometry"] == [[ring]]
+
+
+def test_boundary_rows_keeps_multipolygons_and_skips_non_polygons() -> None:
+    polygons = [[[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0]]],
+                [[[2.0, 2.0], [3.0, 2.0], [3.0, 3.0], [2.0, 2.0]]]]
+    geojson = {"features": [
+        {"properties": {"shapeName": "Multi"}, "geometry": {"type": "MultiPolygon", "coordinates": polygons}},
+        {"properties": {"shapeName": "A Point"}, "geometry": {"type": "Point", "coordinates": [0.0, 0.0]}},
+    ]}
+
+    rows = boundary_rows(geojson, "DEU", "ADM4", 0)
+
+    assert [row["name"] for row in rows] == ["Multi"]        # the non-polygon feature is dropped
+    assert (rows[0]["geometry"], rows[0]["admin_level"]) == (polygons, "ADM4")  # used as-is, level recorded
+
+
+def test_world_rows_carries_country_name_and_iso3() -> None:
+    # The global ADM0 map (Natural Earth): one row per country, keyed for enrich's detector.
+    geojson = {"features": [
+        {"properties": {"NAME": "Germany", "ADM0_A3": "DEU"},
+         "geometry": {"type": "Polygon", "coordinates": [[[6, 50], [8, 50], [8, 52], [6, 50]]]}},
+        {"properties": {"NAME": "Ocean point"}, "geometry": {"type": "Point", "coordinates": [0, 0]}},
+    ]}
+
+    rows = world_rows(geojson, 1_700_000_000)
+
+    assert len(rows) == 1  # the non-polygon feature is dropped
+    assert (rows[0]["country"], rows[0]["iso3"]) == ("Germany", "DEU")

@@ -14,7 +14,7 @@ from flechtwerk.attribute import Attribute, DATETIME, FLOAT, INT, STR
 NAME: Final = Attribute("name", STR)
 """Batch name — the output message key and the monitor's per-batch state key."""
 
-# --- Shared by the inbound hydrometer payload and the fermentation.readings
+# --- Shared by the inbound hydrometer payload and the fermentation-readings
 #     event (same wire keys, same codecs) ---
 
 GRAVITY: Final = Attribute("gravity", FLOAT)
@@ -31,12 +31,12 @@ ANGLE: Final = Attribute("angle", FLOAT, optional=True)
 BATTERY: Final = Attribute("battery", FLOAT, optional=True)
 """Sensor battery voltage — extra telemetry, carried through verbatim if present."""
 
-# --- fermentation.readings adds ---
+# --- fermentation-readings adds ---
 
 BATCH: Final = Attribute("batch", STR)
 AT: Final = Attribute("at", DATETIME)
 
-# --- fermentation.alerts ---
+# --- fermentation-alerts ---
 
 KIND: Final = Attribute("kind", STR)
 """``"stall"`` (gravity flat too long) or ``"complete"`` (reached final gravity)."""

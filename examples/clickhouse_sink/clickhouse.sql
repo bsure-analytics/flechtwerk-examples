@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS flechtwerk.adsb_positions
     ground_speed Nullable(Float64),
     lat Float64,
     lon Float64,
-    region LowCardinality(String),
+    requested_region LowCardinality(String),
     polled_at DateTime64(3, 'UTC'),
     source_partition Int32,
     source_offset UInt64,

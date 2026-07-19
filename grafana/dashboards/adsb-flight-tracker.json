@@ -63,7 +63,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, over_country, alt_baro AS altitude, emergency, lat AS latitude, lon AS longitude FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND lat != 0 AND lon != 0"
+          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, nearest_place AS area, over_country, alt_baro AS altitude, emergency, lat AS latitude, lon AS longitude FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND lat != 0 AND lon != 0"
         }
       ]
     },
@@ -96,7 +96,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, over_country AS country, alt_baro AS altitude, round(gs) AS ground_speed, round(vertical_rate) AS vertical_rate, airline_wiki, type_wiki FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 ORDER BY gs DESC"
+          "rawSql": "SELECT hex, trimBoth(flight) AS callsign, airline, aircraft_type_name AS type, nearest_place AS area, over_country AS country, alt_baro AS altitude, round(gs) AS ground_speed, round(vertical_rate) AS vertical_rate, airline_wiki, type_wiki FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 ORDER BY gs DESC"
         }
       ]
     },

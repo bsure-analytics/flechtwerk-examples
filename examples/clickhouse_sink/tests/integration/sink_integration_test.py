@@ -23,7 +23,7 @@ pytestmark = pytest.mark.integration
 def _position_record(i: int):
     payload = {
         "hex": f"ac{i:04d}", "flight": f"TEST{i}", "alt_baro": 30000 + i,
-        "gs": 400.0 + i, "lat": 51.5, "lon": -0.4, "region": "london",
+        "gs": 400.0 + i, "lat": 51.5, "lon": -0.4, "requested_region": "london",
         "polled_at": "2026-07-17T12:00:00Z", "is_deleted": 0,
     }
     return make_record(topic=INPUT_TOPIC, partition=0, offset=i, value=json.dumps(payload))

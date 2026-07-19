@@ -99,7 +99,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT at, event_type, hex, trimBoth(flight) AS callsign, region, detail FROM flechtwerk.adsb_events ORDER BY at DESC LIMIT 200"
+          "rawSql": "SELECT at, event_type, hex, trimBoth(flight) AS callsign, requested_region, detail FROM flechtwerk.adsb_events ORDER BY at DESC LIMIT 200"
         }
       ]
     },

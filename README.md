@@ -1,4 +1,4 @@
-# flechtwerk-examples
+# Flechtwerk Examples
 
 Complete, runnable examples for [Flechtwerk](https://github.com/bsure-analytics/flechtwerk) —
 an async stream-processing framework for Kafka with real transactions for
@@ -17,7 +17,7 @@ scenario under `examples/`:
 
 | # | Example | Shows off | Run |
 |---|---------|-----------|-----|
-| 1 | [`adsb_flight_tracker`](examples/adsb_flight_tracker) | a 3-stage `Extractor`→`Transformer`→`Transformer` pipeline: raw capture, spread+`flatten()` projection, state-as-enrichment-cache (live Wikidata/Nominatim lookups), derived events, baby-TCAS conflict detection | `adsb` |
+| 1 | [`adsb_flight_tracker`](examples/adsb_flight_tracker) | a 3-stage `Extractor`→`Transformer`→`Transformer` pipeline (+ a config-driven boundary-loader stage): raw capture, spread-through projection, state-as-enrichment-cache (live Wikidata labels + a ClickHouse polygon-dictionary reverse geocoder), derived events, baby-TCAS conflict detection | `adsb` |
 | 2 | [`clickhouse_sink`](examples/clickhouse_sink) | a sink transformer with honest at-least-once side-effect semantics (idempotent writes) | `setup-sink` → `adsb` + `run-sink` |
 | 3 | [`chaos_harness`](examples/chaos_harness) | an executable exactly-once proof — SIGKILL a stage mid-batch, assert zero dupes/gaps | `chaos` |
 | 4 | [`fermentation_monitor`](examples/fermentation_monitor) | the `MqttExtractor` bridge (ACK only after Kafka) + a stateful gravity monitor | `fermentation` |
@@ -35,8 +35,8 @@ Each example is self-contained under its own directory with its own README.
 ```bash
 uv sync                 # create the venv and install the pinned dependencies
 uv run poe up           # start the shared stack, wait until healthy
-uv run poe setup-adsb   # prepare an example (each has its own setup-* target)
-uv run poe run-adsb     # run it against the stack (each has its own run-* target)
+uv run poe adsb         # set up + run the ADS-B flight tracker (stays in the foreground)
+uv run poe request-region "Brussels" 200   # (second terminal) track a region; radius in nautical miles
 uv run poe down         # stop the stack and delete its volumes
 ```
 

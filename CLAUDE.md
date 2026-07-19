@@ -118,13 +118,26 @@ Its Grafana dashboard, when it ships one, lives under `grafana/dashboards/` with
 a hyphenated name (e.g. `adsb-flight-tracker.json`); its poe targets are
 `setup-<name>` / `run-<name>`; its host metrics port follows the allocation in
 `prometheus/prometheus.yml` (`9101` adsb ingest + `9105` adsb enrich + `9106` adsb
-conflict, `9102` sink, `9103` fermentation monitor + `9104` fermentation bridge;
-the chaos harness runs metrics-off — its rapid SIGKILL restarts would race to
-rebind a scrape port). The ADS-B example is a three-stage pipeline (ingest
-extractor → enrich transformer → conflict transformer) run as three host
-processes, like fermentation's bridge + monitor. An extractor takes one config record per poll target, keyed by
-name, written to a compacted config topic by `setup.py` (any producer, Kafbat
-included, works too); a transformer consumes a partitioned input topic instead.
+conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
+`9104` fermentation bridge; the chaos harness runs metrics-off — its rapid SIGKILL
+restarts would race to rebind a scrape port). The ADS-B example is a three-stage
+data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
+companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
+processes. Reverse geocoding is **staged and traffic-driven** over a stack of ClickHouse
+`POLYGON` dictionaries (no Nominatim/PostGIS on the reverse path): the loader downloads a
+global ADM0 **world map** at startup (`__aenter__`, Natural Earth admin-0 — geoBoundaries'
+own global ADM0/CGAZ is ~400 MB, too heavy), and enrich detects each aircraft's country
+against it, writing that ISO-3 to the compacted `adsb.countries` topic; the loader consumes
+those as its poll targets and downloads **all** admin levels that country publishes
+(geoBoundaries ADM1…ADM5) into one `region_adm{n}_dict` each (all from the single
+`region_boundaries` table filtered by level), just-in-time. enrich `dictGet`s every level
+for a point and concatenates the hits into a hierarchical label (`Le Bourget; Marne; Grand
+Est`) — one dict per level because a polygon dict returns only the finest containing
+polygon. **Nothing is seeded** — `setup.py` only creates topics + schema; a user requests a
+poll region with `uv run poe request-region "<name>"` (→ `request.py` → `adsb.regions`),
+and forward geocoding of that name→centre uses public Nominatim (`ingest`). An extractor
+takes one config record per poll target, keyed on a compacted config topic (any producer,
+Kafbat included, works too); a transformer consumes a partitioned input topic instead.
 
 ## Conventions carried from the framework (keep these)
 

@@ -62,7 +62,7 @@ async def reset(bootstrap: str = BOOTSTRAP_SERVERS) -> None:
         await admin.close()
     await create_topics(bootstrap)
     # Drop the ClickHouse tables so apply_schema rebinds the Kafka engine to the
-    # freshly recreated chaos.output (dependents first).
+    # freshly recreated chaos-output (dependents first).
     async with httpx.AsyncClient(base_url=CLICKHOUSE_URL, timeout=30.0) as client:
         for table in ("chaos_output_mv", "chaos_output_queue", "chaos_output"):
             (await client.post("/", content=f"DROP TABLE IF EXISTS flechtwerk.{table}")).raise_for_status()
@@ -93,7 +93,7 @@ async def apply_schema(base_url: str = CLICKHOUSE_URL) -> None:
 
 async def main() -> None:
     await reset()  # clean slate: fresh topics, empty state, dropped ClickHouse tables
-    await apply_schema()  # recreate the tables, rebinding the Kafka engine to fresh chaos.output
+    await apply_schema()  # recreate the tables, rebinding the Kafka engine to fresh chaos-output
     await produce_input()
     print(f"Produced {RECORD_COUNT} input records — run: uv run poe run-chaos, then uv run poe verify-chaos")
 

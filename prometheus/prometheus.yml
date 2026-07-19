@@ -14,9 +14,11 @@ scrape_configs:
   # until you start the matching example — that is expected, not a failure.
   - job_name: flechtwerk
     static_configs:
-      # adsb_flight_tracker runs three host stages under one example label: the
-      # ingest extractor (9101), the enrich transformer (9105), and the conflict
-      # transformer (9106).
+      # adsb_flight_tracker runs four host stages under one example label: the
+      # boundary loader (9107), the ingest extractor (9101), the enrich transformer
+      # (9105), and the conflict transformer (9106).
+      - targets: ["host.docker.internal:9107"]
+        labels: { example: adsb_flight_tracker }
       - targets: ["host.docker.internal:9101"]
         labels: { example: adsb_flight_tracker }
       - targets: ["host.docker.internal:9105"]

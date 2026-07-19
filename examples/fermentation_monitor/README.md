@@ -6,7 +6,7 @@ data** — and a stateful transformer tracks each batch's gravity curve, alertin
 on a stall and tombstoning the batch when fermentation finishes.
 
 ```
-ispindel/<batch> ──MQTT──▶ bridge (MqttExtractor) ──▶ fermentation.readings ──▶ monitor (Transformer) ──▶ fermentation.alerts
+ispindel/<batch> ──MQTT──▶ bridge (MqttExtractor) ──▶ fermentation-readings ──▶ monitor (Transformer) ──▶ fermentation-alerts
    (simulator)             ACK after Kafka has it        gravity curve            per-batch state:          (stall / complete)
                                                                                   stall → alert
                                                                                   bottled → tombstone
@@ -66,4 +66,4 @@ uv run pytest -m integration examples/fermentation_monitor     # tier 3 (needs D
    pinning the stall alert.
 3. **`tests/integration/` — integration tier.** The real `MqttExtractor` via
    `Flechtwerk.run()` against ephemeral Mosquitto + Kafka: publish over MQTT,
-   assert the reading lands on `fermentation.readings`.
+   assert the reading lands on `fermentation-readings`.

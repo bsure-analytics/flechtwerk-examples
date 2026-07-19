@@ -4,9 +4,10 @@ The guiding rule (see the framework's [typed attributes](https://bsure-analytics
 **declare an ``Attribute`` only for data a stage actually computes with** — reads
 to decide, or writes as a derived value. Every *other* field the adsb.lol feed
 sends (``r``, ``track``, ``seen``, ``mlat``, ``rssi``, … and anything adsb.lol
-adds next month) is carried through untouched by *spreading* the raw record and
-``flatten()``-ing it at the sink boundary (see ``enrich.py``), so it needs no
-attribute. That keeps this list short and the pipeline robust to upstream schema
+adds next month) is carried through untouched by *spreading* the raw record (see
+``enrich.py``), so it needs no attribute. The ClickHouse sink reads each message
+whole into a ``JSON`` column, so it lands natively — nested feed structure included,
+no flattening. That keeps this list short and the pipeline robust to upstream schema
 changes: a new source field flows straight to ClickHouse instead of being dropped
 or breaking a hand-declared schema.
 
@@ -40,7 +41,7 @@ DURATION: Final = Codec(
 # --- Config: one record per region to poll (wire key = region name) ---
 
 NAME: Final = Attribute("name", STR)
-"""Region label; the config wire key, the ``adsb.raw`` message key, and the enrich
+"""Region label; the config wire key, the ``adsb-raw`` message key, and the enrich
 stage's per-region state key."""
 LAT: Final = Attribute("lat", FLOAT)
 """Region-centre latitude in the config (aircraft positions keep the wire ``lat``)."""
@@ -50,7 +51,12 @@ RADIUS: Final = Attribute("radius", INT, optional=True)
 """Search radius in nautical miles; a config may omit it — ``enrich_config``
 supplies the default and clamps it to adsb.lol's maximum (see ``ingest.py``)."""
 
-# --- Raw record: one poll on adsb.raw (ingest output → enrich input) ---
+ISO3: Final = Attribute("iso3", STR)
+"""ISO 3166-1 alpha-3 country code. The value on an ``adsb-countries`` record (the
+enrich stage's country-load request → the boundary loader's poll target), and the
+world map's ``dictGet`` result identifying the country an aircraft is over."""
+
+# --- Raw record: one poll on adsb-raw (ingest output → enrich input) ---
 #
 # Three nested Records so the *uncontrolled* feed schema keeps its own namespace
 # and can never collide with our fields (see ``ingest.wrap_response``).
@@ -75,11 +81,11 @@ NOW: Final = Attribute("now", ANY)
 # --- adsb.lol per-aircraft fields we READ (wire names, uncontrolled) ---
 #
 # Only the fields a stage computes with get a handle; every other feed field
-# passes through via spreading + flatten() with its wire name and no attribute.
+# passes through via spreading, under its wire name, with no attribute.
 # Numeric handles are ``ANY`` because JSON does not distinguish 420 from 420.0.
 
 HEX: Final = Attribute("hex", STR)
-"""ICAO 24-bit address — the aircraft identity and the ``adsb.aircraft`` message key."""
+"""ICAO 24-bit address — the aircraft identity and the ``adsb-aircraft`` message key."""
 SRC_CALLSIGN: Final = Attribute("flight", STR, optional=True)
 """Callsign — read (stripped) to derive the airline code; passes through as ``flight``."""
 SRC_TYPE: Final = Attribute("t", STR, optional=True)
@@ -115,8 +121,11 @@ SQUAWK: Final = Attribute("squawk", STR, optional=True)
 
 # --- Derived output: our own fields, added to every aircraft event ---
 
-REGION: Final = Attribute("region", STR)
-"""The region an event belongs to — poll provenance, resolved from the nested config."""
+REQUESTED_REGION: Final = Attribute("requested_region", STR)
+"""The poll target a message came from — the region *searched* (the config ``NAME``,
+e.g. "London"), not where the aircraft actually is. The aircraft's real location is the
+reverse-geocoded ``NEAREST_PLACE`` (+ ``OVER_COUNTRY``); the ``requested_region`` name
+keeps the two distinct in ClickHouse / Kafka / Grafana."""
 POLLED_AT: Final = Attribute("polled_at", DATETIME)
 """Feed timestamp of the poll that produced this event."""
 IS_DELETED: Final = Attribute("is_deleted", INT)
@@ -137,11 +146,14 @@ AIRCRAFT_TYPE_NAME: Final = Attribute("aircraft_type_name", STR, optional=True)
 TYPE_WIKI: Final = Attribute("type_wiki", STR, optional=True)
 """Wikipedia URL for the aircraft type (resolved from Wikidata)."""
 OVER_COUNTRY: Final = Attribute("over_country", STR, optional=True)
-"""Country the aircraft is currently over (reverse-geocoded from its position)."""
+"""ISO-3 country the aircraft is currently over, reverse-geocoded from its position via
+the ClickHouse polygon dictionary (the boundary map's ``country`` attribute)."""
 NEAREST_PLACE: Final = Attribute("nearest_place", STR, optional=True)
-"""Nearest named place to the aircraft's position (reverse-geocoded)."""
+"""The admin area the aircraft is currently over — the boundary map's containing polygon
+(geoBoundaries level, default ADM3, e.g. a municipality/town). This is the
+aircraft's actual region, as opposed to ``REQUESTED_REGION`` (the poll target)."""
 
-# --- Events: derived aviation events on adsb.events (enrich + conflict output) ---
+# --- Events: derived aviation events on adsb-events (enrich + conflict output) ---
 
 AT: Final = Attribute("at", DATETIME)
 """When the event was observed (the poll's feed timestamp)."""
@@ -150,10 +162,10 @@ EVENT_TYPE: Final = Attribute("event_type", STR)
 DETAIL: Final = Attribute("detail", STR)
 """Human-readable description, e.g. ``"squawk 7700 (general emergency)"``."""
 
-# --- Cells: positions re-keyed by grid cell on adsb.cells (enrich → conflict) ---
+# --- Cells: positions re-keyed by grid cell on adsb-cells (enrich → conflict) ---
 
 CELL: Final = Attribute("cell", STR)
-"""Grid-cell key an aircraft position falls in — the ``adsb.cells`` message key."""
+"""Grid-cell key an aircraft position falls in — the ``adsb-cells`` message key."""
 
 # --- Enrich state: per region (wire key = region name) ---
 
@@ -167,9 +179,9 @@ AIRLINE_CACHE: Final = Attribute("airline_cache", DICT(RECORD))
 an empty Record — a resolved 'unknown') means 'already looked up', so the live
 lookup runs only on a miss. Survives restart via the changelog: the whole point."""
 TYPE_CACHE: Final = Attribute("type_cache", DICT(RECORD))
-"""ICAO type designator → cached ``{aircraft_type_name, type_wiki}``."""
-GEO_CACHE: Final = Attribute("geo_cache", DICT(RECORD))
-"""Grid-cell key → cached ``{over_country, nearest_place}`` (geocode once per cell)."""
+"""ICAO type designator → cached ``{aircraft_type_name, type_wiki}``. (Reverse geocoding
+is not cached — it is a per-poll ClickHouse batch from each aircraft's exact position;
+see ``AdsbEnrich._geocode``.)"""
 
 # --- Conflict state: per grid cell (wire key = cell) ---
 
@@ -180,19 +192,32 @@ ACTIVE_PAIRS: Final = Attribute("active_pairs", SET(STR))
 """Conflict pairs currently in violation (``"hexA|hexB"``), so a sustained
 near-miss emits one event at onset, not one per poll."""
 
-# --- Enricher upstream response boundary (Wikidata SPARQL + Nominatim) ---
+# --- Boundary loader state: per country (wire key = ISO-3) ---
+
+CHECKED_AT: Final = Attribute("checked_at", DATETIME, optional=True)
+"""When the loader last confirmed this country's boundaries were present and fresh — the
+check-cadence timer, so most polls are a cheap no-op (see ``boundaries.py``)."""
+
+# --- Enrich state: countries already requested (so each is emitted to adsb-countries once) ---
+
+COUNTRIES_REQUESTED: Final = Attribute("countries_requested", SET(STR))
+"""ISO-3 codes this region's enrich has already written to ``adsb-countries`` — so a
+country with ongoing traffic is requested once, not every poll (see ``enrich.py``)."""
+
+# --- Third-party response boundaries (Wikidata SPARQL, geoBoundaries) ---
 #
 # Unlike everything above, these describe *third-party* JSON bodies, not the
-# pipeline's own topics/state — the shapes ``WikidataNominatimEnricher`` parses.
-# They live here so all of the example's typed handles sit in one file, but they
-# never ride a topic: they exist only so the enricher reads its upstream responses
-# through the same typed-attribute discipline (no bare dict indexing past
-# ``Record.wrap``) as every pipeline edge. Nominatim's top-level ``name`` (the most
-# specific place label) is read through the existing ``NAME`` handle — same wire key
-# and codec, so no separate attribute. Likewise the *forward* geocoder's ``/search``
-# hit (``ingest`` → ``geocoding``, resolving a name-only region) reads its ``lat`` /
-# ``lon`` through the existing ``SRC_LAT`` / ``SRC_LON`` handles — same wire keys, same
-# ``ANY`` codec (Nominatim delivers them as strings), coerced to the config's centre.
+# pipeline's own topics/state — the shapes the enricher and the boundary loader
+# parse. They live here so all of the example's typed handles sit in one file, but
+# they never ride a topic: they exist only so external responses are read through
+# the same typed-attribute discipline (no bare dict indexing past ``Record.wrap``)
+# as every pipeline edge. The *forward* geocoder's ``/search`` hit (``ingest`` →
+# ``geocoding``, resolving a name-only region) reads its ``lat`` / ``lon`` through the
+# existing ``SRC_LAT`` / ``SRC_LON`` handles — same wire keys, same ``ANY`` codec
+# (Nominatim delivers them as strings), coerced to the config's centre. Reverse
+# geocoding parses no upstream body: it is a ClickHouse ``dictGet`` whose columns are
+# aliased to ``over_country`` / ``iso3`` / ``nearest_place`` (read through the existing
+# handles), so no reverse-response attributes are needed.
 
 RESULTS: Final = Attribute("results", RECORD)
 """SPARQL results envelope on a Wikidata response — holds the ``bindings`` rows."""
@@ -205,11 +230,8 @@ ARTICLE: Final = Attribute("article", RECORD)
 VALUE: Final = Attribute("value", STR)
 """The ``value`` string inside a SPARQL binding cell."""
 
-ADDRESS: Final = Attribute("address", RECORD)
-"""The nested address object on a Nominatim reverse-geocode response."""
-COUNTRY: Final = Attribute("country", STR)
-"""Country name inside a Nominatim ``address``."""
-CITY: Final = Attribute("city", STR)
-TOWN: Final = Attribute("town", STR)
-STATE: Final = Attribute("state", STR)
-"""Nominatim ``address`` fallbacks for the nearest place, coarsest last."""
+GJ_DOWNLOAD_URL: Final = Attribute("gjDownloadURL", STR)
+"""Full-resolution GeoJSON download URL in a geoBoundaries API metadata response."""
+SIMPLIFIED_GEOJSON_URL: Final = Attribute("simplifiedGeometryGeoJSON", STR, optional=True)
+"""Simplified (smaller) GeoJSON URL in a geoBoundaries API metadata response — the
+loader prefers it when present (faster download; coarse boundaries are the point)."""

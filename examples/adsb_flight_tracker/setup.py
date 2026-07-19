@@ -2,39 +2,36 @@
 
     uv run poe setup-adsb
 
-Creates the config topic and the four pipeline topics, seeds one region to poll,
-and applies the ClickHouse schema (``clickhouse.sql``). This is the ops step the
-framework assumes is done up front: each stage existence-checks its topics at
-startup and fails fast if any is missing. Configuration is injected here, not read
-from the environment — edit ``REGIONS`` (or write more records to ``adsb.regions``
-with any producer, Kafbat UI included) to poll elsewhere.
+Creates the config topics and the pipeline topics and applies the ClickHouse schema
+(``clickhouse.sql``, including the two reverse-geocoding polygon dictionaries). This is
+the ops step the framework assumes is done up front: each stage existence-checks its
+topics at startup and fails fast if any is missing.
+
+**Nothing is seeded.** There is no hard-coded region — after setup, request the region
+you care about with the CLI:
+
+    uv run poe request-region "London"
+
+which writes one config record to ``adsb-regions`` (see ``request.py``). The boundary
+loader needs no seeding: it downloads the world map at startup and each country's fine
+map on demand as enrich detects traffic (see ``boundaries.py``).
 """
 import asyncio
-import json
 from pathlib import Path
 
 import httpx
-from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
-from examples._setup import quiet_fresh_topic_produce_race
-
+from .boundaries import COUNTRIES_TOPIC
 from .enrich import AIRCRAFT_TOPIC, CELLS_TOPIC, EVENTS_TOPIC
 from .ingest import CONFIG_TOPIC, RAW_TOPIC
 
 BOOTSTRAP_SERVERS = "localhost:9092"
 CLICKHOUSE_URL = "http://localhost:8123"
 
-REGIONS = [
-    # Londong is reliably busy. A region may give lat/lon (and optionally radius) explicitly, or carry just a name and
-    # let ingest forward-geocode it — see ingest.enrich_config.
-    # radius defaults to 100 nm (clamped to adsb.lol's max) when omitted.
-    {"name": "London"},
-]
-
 
 async def create_topics() -> None:
-    """Create the compacted config topic and the four pipeline topics if absent."""
+    """Create the compacted config topics (regions + countries) and the pipeline topics."""
     admin = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP_SERVERS)
     await admin.start()
     try:
@@ -42,7 +39,8 @@ async def create_topics() -> None:
         new = [
             NewTopic(name, num_partitions=8, replication_factor=1, topic_configs=configs)
             for name, configs in (
-                (CONFIG_TOPIC, {"cleanup.policy": "compact"}),
+                (CONFIG_TOPIC, {"cleanup.policy": "compact"}),     # regions to poll (user-requested)
+                (COUNTRIES_TOPIC, {"cleanup.policy": "compact"}),  # countries to map (enrich-requested)
                 (RAW_TOPIC, {}),
                 (AIRCRAFT_TOPIC, {}),
                 (CELLS_TOPIC, {}),
@@ -59,23 +57,6 @@ async def create_topics() -> None:
         await admin.close()
 
 
-async def seed_regions() -> None:
-    """Write one config record per region (wire key = region name)."""
-    producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP_SERVERS)
-    await producer.start()
-    try:
-        with quiet_fresh_topic_produce_race():
-            for region in REGIONS:
-                await producer.send_and_wait(
-                    CONFIG_TOPIC,
-                    key=region["name"].encode(),
-                    value=json.dumps(region).encode(),
-                )
-        print(f"Seeded regions: {[r['name'] for r in REGIONS]}")
-    finally:
-        await producer.stop()
-
-
 async def apply_clickhouse_schema() -> None:
     """Apply ``clickhouse.sql`` over the HTTP interface, one statement at a time."""
     raw = (Path(__file__).parent / "clickhouse.sql").read_text()
@@ -89,9 +70,9 @@ async def apply_clickhouse_schema() -> None:
 
 async def main() -> None:
     await create_topics()
-    await seed_regions()
     await apply_clickhouse_schema()
-    print("ADS-B setup complete — run: uv run poe run-adsb (then run-adsb-enrich, run-adsb-conflict)")
+    print('ADS-B setup complete — run "uv run poe run-adsb", then request a region: '
+          'uv run poe request-region "London"')
 
 
 if __name__ == "__main__":

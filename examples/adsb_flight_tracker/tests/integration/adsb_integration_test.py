@@ -2,7 +2,7 @@
 
 Runs the actual ``Flechtwerk.of(...).run()`` for **both** pipeline stages against a
 real broker (the shared session-scoped Kafka fixture from the repo-root
-``conftest.py``) — ingest → ``adsb.raw`` → enrich — with only the HTTP feed and the
+``conftest.py``) — ingest → ``adsb-raw`` → enrich — with only the HTTP feed and the
 enrichment services stubbed. It proves the whole path end to end: config
 bootstrap, the raw hand-off, per-page transactions, live-cached enrichment, and —
 across two polls — an enriched position, a departure tombstone, and derived
@@ -26,10 +26,12 @@ from examples.adsb_flight_tracker.attributes import (
     AIRCRAFT_TYPE_NAME,
     AIRLINE,
     AIRLINE_WIKI,
+    ISO3,
     NEAREST_PLACE,
     OVER_COUNTRY,
     TYPE_WIKI,
 )
+from examples.adsb_flight_tracker.boundaries import COUNTRIES_TOPIC
 from examples.adsb_flight_tracker.enrich import AIRCRAFT_TOPIC, CELLS_TOPIC, EVENTS_TOPIC, AdsbEnrich
 from examples.adsb_flight_tracker.ingest import CONFIG_TOPIC, RAW_TOPIC, AdsbIngest
 
@@ -45,7 +47,7 @@ DEPARTED = {"now": 1_700_000_005_000, "ac": [
 
 
 class _FakeEnricher:
-    """Deterministic enrichment — no live Wikidata/Nominatim in CI."""
+    """Deterministic enrichment — no live Wikidata or ClickHouse geocode in CI."""
 
     async def airline(self, icao: str) -> Record:
         return Record({AIRLINE: f"Airline {icao}", AIRLINE_WIKI: f"https://en.wikipedia.org/wiki/{icao}"})
@@ -53,8 +55,8 @@ class _FakeEnricher:
     async def aircraft_type(self, designator: str) -> Record:
         return Record({AIRCRAFT_TYPE_NAME: f"Type {designator}", TYPE_WIKI: f"https://en.wikipedia.org/wiki/{designator}"})
 
-    async def geocode(self, lat: float, lon: float) -> Record:
-        return Record({OVER_COUNTRY: "United Kingdom", NEAREST_PLACE: "London"})
+    async def geocode(self, points: list[tuple[float, float]]) -> list[Record]:
+        return [Record({OVER_COUNTRY: "United Kingdom", ISO3: "GBR", NEAREST_PLACE: "London"}) for _ in points]
 
 
 class _FakeGeocoder:
@@ -82,6 +84,7 @@ async def _create_topics(bootstrap: str) -> None:
     try:
         await admin.create_topics([
             NewTopic(CONFIG_TOPIC, num_partitions=8, replication_factor=1, topic_configs={"cleanup.policy": "compact"}),
+            NewTopic(COUNTRIES_TOPIC, num_partitions=8, replication_factor=1, topic_configs={"cleanup.policy": "compact"}),
             *(NewTopic(topic, num_partitions=8, replication_factor=1)
               for topic in (RAW_TOPIC, AIRCRAFT_TOPIC, EVENTS_TOPIC, CELLS_TOPIC)),
         ])

@@ -1,19 +1,18 @@
 """Forward geocoding — a place name → coordinates — via Nominatim ``/search``.
 
-The *forward* companion to the enrich stage's *reverse* geocoder
-(:meth:`enrich.WikidataNominatimEnricher.geocode`, a position → its place name):
-both talk to the same community Nominatim service under the same ``User-Agent``
-policy, so the shared constants live here and the enrich stage imports them (one
-copy, no drift).
+Forward geocoding (name → coordinates) is used by :meth:`ingest.AdsbIngest.enrich_config`
+to resolve a name-only region to the centre its poll needs. It uses the community Nominatim
+service under a proper ``User-Agent``; the constant lives here. Reverse geocoding is *not*
+here — it is a staged local ClickHouse polygon-dictionary lookup in the enrich stage
+(world map → country, then per-country map → area; see ``enrich.py`` / ``boundaries.py``),
+so no Nominatim (nor pycountry) is on the reverse path.
 
-It lets a region config carry **just a name** — ``{"name": "London"}`` — and
-have :meth:`ingest.AdsbIngest.enrich_config` resolve the coordinates the poll needs.
-Unlike the enrich stage's *decorative*, per-position reverse lookups (best-effort,
-circuit-broken, bounded per poll), this runs **once per config record** and its
-result is **essential** — without a centre the region cannot be polled — so it keeps
-the framework's plain "let it crash" behaviour: a timeout / 5xx propagates and the
-orchestrator restarts; a name that matches nothing is a config error, raised as such.
-No in-process retry, no swallowing.
+It lets a region config carry **just a name** — ``{"name": "London"}`` — and have the poll
+centre resolved from it. Unlike the enrich stage's *decorative*, per-position reverse
+geocode (best-effort), this runs **once per config record** and its result is **essential**
+— without a centre the region cannot be polled — so it keeps the framework's plain "let it
+crash" behaviour: a timeout / 5xx propagates and the orchestrator restarts; a name that
+matches nothing is a config error, raised as such. No in-process retry, no swallowing.
 
 The stage injects the geocoder (real over HTTP, a fake in tests), exactly as the
 enrich stage injects its ``Enricher`` — so no network is touched off the live path.
@@ -28,14 +27,14 @@ from .attributes import SRC_LAT, SRC_LON
 USER_AGENT = "flechtwerk-examples/0 (+https://github.com/bsure-analytics/flechtwerk-examples)"
 """Sent on every request this example makes (adsb.lol, Wikidata, Nominatim) — the
 community feeds' usage policies ask for an identifying agent. One string, imported by
-``ingest`` (its adsb.lol client + this geocoder) and ``enrich`` (its Wikidata/Nominatim
-client), so the identity can't drift between stages."""
+``ingest`` (its adsb.lol client + this geocoder), the boundary loader (its geoBoundaries
+download client), and ``enrich`` (its Wikidata client), so the identity can't drift between stages."""
 
 NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org"
-"""Public Nominatim host, shared by the forward geocoder here (``/search``) and the
-enrich stage's reverse geocoder (``/reverse``). Point either at the opt-in self-hosted
-instance (the ``geocoder`` compose profile, ``http://localhost:8091``) to escape the
-public service's rate limit — see the README."""
+"""Public Nominatim host for forward geocoding (``/search``): the ingest stage's region
+centre and the boundary loader's region → country resolution. Reverse geocoding does not
+use it (it is a local ClickHouse polygon dictionary). Point it elsewhere to run the
+forward lookups against a self-hosted Nominatim."""
 
 
 class Geocoder(Protocol):
@@ -50,8 +49,8 @@ class NominatimGeocoder:
     """Resolves a place name to coordinates via Nominatim ``/search`` (forward geocode).
 
     ``client`` / ``search_url`` are injectable so tests drive it over a
-    ``MockTransport`` and a caller can point it at the self-hosted Nominatim (the
-    ``geocoder`` compose profile) instead of the public, rate-limited one.
+    ``MockTransport`` and a caller can point it at a self-hosted Nominatim instead of
+    the public, rate-limited one.
     """
 
     SEARCH_URL = NOMINATIM_BASE_URL + "/search"

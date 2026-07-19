@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS flechtwerk.fermentation_readings_queue
 ENGINE = Kafka
 SETTINGS
     kafka_broker_list = 'kafka:19092',
-    kafka_topic_list = 'fermentation.readings',
-    kafka_group_name = 'clickhouse-fermentation-readings',
+    kafka_topic_list = 'fermentation-readings',
+    kafka_group_name = 'fermentation-readings-clickhouse',
     kafka_format = 'JSONEachRow',
     kafka_num_consumers = 1,
     input_format_skip_unknown_fields = 1;
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS flechtwerk.fermentation_alerts_queue
 ENGINE = Kafka
 SETTINGS
     kafka_broker_list = 'kafka:19092',
-    kafka_topic_list = 'fermentation.alerts',
-    kafka_group_name = 'clickhouse-fermentation-alerts',
+    kafka_topic_list = 'fermentation-alerts',
+    kafka_group_name = 'fermentation-alerts-clickhouse',
     kafka_format = 'JSONEachRow',
     kafka_num_consumers = 1,
     input_format_skip_unknown_fields = 1;

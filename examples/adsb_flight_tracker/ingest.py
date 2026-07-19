@@ -1,7 +1,7 @@
 """ADS-B ingest — an ``Extractor`` that wraps the raw adsb.lol feed, untouched.
 
 Stage 1 of the pipeline. It polls adsb.lol's radius endpoint once per region and
-emits **one** ``adsb.raw`` message per poll, structured as three nested Records:
+emits **one** ``adsb-raw`` message per poll, structured as three nested Records:
 the whole response verbatim (the entire ``ac[]`` array intact), the ``config``
 that produced it, and ``metadata`` provenance (``fetched_at`` and a
 ``fetch_duration`` timedelta). Nesting keeps the *uncontrolled* feed schema in its
@@ -10,7 +10,7 @@ own namespace, so a feed key can never collide with our fields.
 Why wrap-and-forward instead of unrolling here: the adsb.lol feed is live and
 un-replayable — there is no "poll yesterday". Capturing the raw response is the
 only way to keep history, so a later change to the enrichment (``enrich.py``) can
-reprocess ``adsb.raw`` from the changelog rather than re-poll a feed that has
+reprocess ``adsb-raw`` from the changelog rather than re-poll a feed that has
 already moved on. Ingestion also runs on adsb.lol's polite, rate-limited cadence;
 decoupling it from the enrichment lets each scale and fail independently.
 
@@ -46,15 +46,16 @@ from .attributes import (
 from .geocoding import USER_AGENT, Geocoder, NominatimGeocoder
 
 ADSB_BASE_URL = "https://api.adsb.lol"
-CONFIG_TOPIC = "adsb.regions"
-RAW_TOPIC = "adsb.raw"
+CONFIG_TOPIC = "adsb-regions"
+RAW_TOPIC = "adsb-raw"
 DEFAULT_RADIUS = 100
 MAX_RADIUS = 250
-"""adsb.lol rejects a larger radius; enrich_config clamps to it."""
+"""The adsb.lol API limit: its ``/v2/point/{lat}/{lon}/{radius}`` endpoint accepts a radius
+of at most 250 nautical miles and rejects anything larger; enrich_config clamps to it."""
 
 
 def wrap_response(config: Config, response: Record, fetched_at: datetime, duration: timedelta) -> Event:
-    """Assemble one ``adsb.raw`` poll record from its three nested parts.
+    """Assemble one ``adsb-raw`` poll record from its three nested parts.
 
     ``fetch`` ``Record.wrap``-s the response at the HTTP boundary, so nothing naive
     travels past the edge; here it becomes the message value — the response, the
@@ -71,7 +72,7 @@ def wrap_response(config: Config, response: Record, fetched_at: datetime, durati
 
 
 class AdsbIngest(Extractor):
-    """Polls adsb.lol's radius endpoint, one region per config record, → ``adsb.raw``.
+    """Polls adsb.lol's radius endpoint, one region per config record, → ``adsb-raw``.
 
     Subclassing (rather than ``@extractor``) is what the framework recommends for a
     stage that owns a resource: the ``httpx`` client is opened in ``__aenter__`` and
@@ -128,7 +129,7 @@ class AdsbIngest(Extractor):
         """Fetch the region's aircraft, wrapping the response at the JSON boundary.
 
         The raw JSON is ``Record.wrap``-ed here, at the edge, so nothing downstream
-        ever handles a naive dict (it becomes the ``adsb.raw`` ``Event`` in
+        ever handles a naive dict (it becomes the ``adsb-raw`` ``Event`` in
         ``wrap_response``). Errors propagate — a timeout or a 5xx crashes the poll
         ("let it crash"): the orchestrator restarts and the cursor restores from
         the changelog, no in-process retry.
@@ -158,9 +159,7 @@ class AdsbIngest(Extractor):
 stage = AdsbIngest()
 """The stage the dispatcher runs (``python -m examples.adsb_flight_tracker ingest``).
 
-Forward-geocodes a name-only region config (see ``enrich_config``) against the public
-Nominatim by default. The dispatcher (``__main__.py``) repoints ``geocoder`` at the
-self-hosted Nominatim automatically when the ``geocoder`` compose profile is up; to do
-it by hand, assign one before running:
-``stage.geocoder = NominatimGeocoder(search_url="http://localhost:8091/search")``.
+Forward-geocodes a name-only region config (see ``enrich_config``) against public
+Nominatim. To point it elsewhere, assign a geocoder before running:
+``stage.geocoder = NominatimGeocoder(search_url=...)``.
 """

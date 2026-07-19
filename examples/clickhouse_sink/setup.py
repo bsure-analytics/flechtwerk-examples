@@ -3,8 +3,8 @@
     uv run poe setup-sink
 
 Ensures the input topic exists and applies the dedup-enabled positions table.
-The sink consumes `adsb.aircraft`, so run example 1's pipeline (`run-adsb`) to
-feed it — or write to `adsb.aircraft` with any producer.
+The sink consumes `adsb-aircraft`, so run example 1's pipeline (`run-adsb`) to
+feed it — or write to `adsb-aircraft` with any producer.
 """
 import asyncio
 from pathlib import Path
@@ -46,7 +46,7 @@ async def apply_schema(base_url: str = CLICKHOUSE_URL, *, database: str = DATABA
 async def main() -> None:
     await ensure_input_topic()
     await apply_schema()
-    print("Sink setup complete — run: uv run poe run-sink (with run-adsb producing adsb.aircraft)")
+    print("Sink setup complete — run: uv run poe run-sink (with run-adsb producing adsb-aircraft)")
 
 
 if __name__ == "__main__":

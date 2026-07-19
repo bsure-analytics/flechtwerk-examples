@@ -13,8 +13,8 @@ from flechtwerk import Event, IncomingMessage, Message, State, transformer
 
 from .attributes import COUNT, SEQ
 
-INPUT_TOPIC = "chaos.input"
-OUTPUT_TOPIC = "chaos.output"
+INPUT_TOPIC = "chaos-input"
+OUTPUT_TOPIC = "chaos-output"
 STATE_KEY = "sequencer"
 """One key for every input record — a single serial bucket, one counter."""
 

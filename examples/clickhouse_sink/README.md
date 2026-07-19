@@ -1,13 +1,13 @@
 # ClickHouse Sink Stage
 
-A **sink transformer**: it consumes `adsb.aircraft` (example 1's output) and
+A **sink transformer**: it consumes `adsb-aircraft` (example 1's output) and
 writes each position into ClickHouse. It is the honest-semantics counterpart to
 example 1, which sinks the same topic with ClickHouse's Kafka *engine* — the
 shortcut. This example does it the way the framework teaches, so the trade-off
 is visible in the code.
 
 ```
-adsb.aircraft ──▶ AdsbSink (Transformer) ──insert (idempotent)──▶ ClickHouse: adsb_positions
+adsb-aircraft ──▶ AdsbSink (Transformer) ──insert (idempotent)──▶ ClickHouse: adsb_positions
                   transform() = a ClickHouse write
 ```
 
@@ -41,7 +41,7 @@ Pairs with example 1 (raw-then-refined). With the [stack](../../README.md#the-st
 
 ```bash
 uv run poe setup-sink        # ensure the input topic + apply the positions schema
-uv run poe run-adsb          # example 1: run the pipeline -> adsb.aircraft
+uv run poe run-adsb          # example 1: run the pipeline -> adsb-aircraft
 uv run poe run-sink          # this: consume it into ClickHouse, idempotently
 ```
 

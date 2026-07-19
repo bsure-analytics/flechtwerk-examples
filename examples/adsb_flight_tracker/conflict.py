@@ -1,6 +1,6 @@
 """ADS-B conflict detection — a stateful spatial self-join (baby TCAS).
 
-Stage 3 of the pipeline. It consumes ``adsb.cells`` — positioned aircraft that
+Stage 3 of the pipeline. It consumes ``adsb-cells`` — positioned aircraft that
 ``enrich.py`` re-keyed by grid cell — and flags **pairs of aircraft that get too
 close**: within ~5 nm horizontally *and* ~1000 ft vertically. Each cell is a
 serial bucket (the input is cell-keyed, so every aircraft in a cell lands on one
@@ -8,8 +8,8 @@ partition/task), so the stage's ``State`` accumulates the cell's recent position
 and every new aircraft is checked against the ones already there — a stream
 self-join, the thing no raw-feed viewer can do.
 
-Why the ``adsb.cells`` repartition exists: a self-join needs the aircraft it
-compares on the *same* partition. ``adsb.aircraft`` is keyed by ICAO, so two
+Why the ``adsb-cells`` repartition exists: a self-join needs the aircraft it
+compares on the *same* partition. ``adsb-aircraft`` is keyed by ICAO, so two
 aircraft in the same airspace hash to different partitions and never meet. Keying
 by grid cell instead puts co-located aircraft together — that is the whole reason
 ``enrich.py`` emits the extra cell-keyed stream. Cell records keep the feed's wire
@@ -38,7 +38,7 @@ from .attributes import (
     HEX,
     POLLED_AT,
     POSITIONS,
-    REGION,
+    REQUESTED_REGION,
     SRC_ALTITUDE,
     SRC_LAT,
     SRC_LON,
@@ -103,7 +103,7 @@ def _conflict_event(polled_at, aircraft: Record, other_icao: str, other: Record,
     detail = f"within {separation:.1f} nm of {other_icao}"
     if altitude is not None and other.get(SRC_ALTITUDE) is not None:
         detail += f", {abs(altitude - other[SRC_ALTITUDE])} ft vertical"
-    event = Event({AT: polled_at, EVENT_TYPE: "conflict", HEX: aircraft[HEX], REGION: aircraft[REGION],
+    event = Event({AT: polled_at, EVENT_TYPE: "conflict", HEX: aircraft[HEX], REQUESTED_REGION: aircraft[REQUESTED_REGION],
                    DETAIL: detail, SRC_LAT: lat, SRC_LON: lon})
     if altitude is not None:
         event[SRC_ALTITUDE] = altitude

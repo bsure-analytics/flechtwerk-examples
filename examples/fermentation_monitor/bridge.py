@@ -20,8 +20,8 @@ from flechtwerk.mqtt import MqttExtractor
 
 from .attributes import AT, BATCH, GRAVITY, NAME
 
-CONFIG_TOPIC = "fermentation.batches"
-READINGS_TOPIC = "fermentation.readings"
+CONFIG_TOPIC = "fermentation-batches"
+READINGS_TOPIC = "fermentation-readings"
 
 
 def to_reading(config: Config, topic: str, payload: Record) -> Message | None:

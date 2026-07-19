@@ -162,42 +162,6 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto:/mosquitto/data
 
-  nominatim:
-    # OPT-IN self-hosted geocoder for the ADS-B example — NOT part of the default stack:
-    #   docker compose --profile geocoder up -d nominatim
-    # The public Nominatim rate-limits (429) the example's systematic per-position
-    # reverse-geocoding; this is the "run your own" answer. First boot imports an OSM
-    # extract before it serves (a few minutes for the ~196 MB London extract below) —
-    # the healthcheck's start_period covers that. Point the enrich stage at it with
-    # (see enrich.py):
-    #   AdsbEnrich(enricher=WikidataNominatimEnricher(nominatim_url="http://localhost:8091/reverse"))
-    profiles: ["geocoder"]
-    image: mediagis/nominatim:5.3
-    environment:
-      # A ~196 MB BBBike extract of GREATER LONDON — small, fast to import, and the demo
-      # polls London. Aircraft out toward the 100 nm poll radius fall outside it and just
-      # don't reverse-geocode (best-effort — the stage handles the miss). For wider
-      # coverage swap in Geofabrik's Great Britain (~2.1 GB, much longer import):
-      #   https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
-      # (Geofabrik has no standalone England extract — the full GB file is the option.)
-      PBF_URL: https://download.bbbike.org/osm/bbbike/London/London.osm.pbf
-      IMPORT_STYLE: address        # smallest/fastest import style — enough for country + place
-      NOMINATIM_PASSWORD: flechtwerk
-    ports:
-      - "127.0.0.1:8091:8080"      # host 8091 (8080 is Kafbat UI); the API serves on 8080 in-container
-    shm_size: "1gb"                # the import needs shared memory
-    volumes:
-      # Persist the import so a restart doesn't re-run it. The path tracks the image's
-      # Postgres major — confirm it for the pinned tag (mediagis README) if you re-pin.
-      - nominatim:/var/lib/postgresql/16/main
-    healthcheck:
-      # /status returns 200 once the import has finished and the API is live.
-      test: ["CMD-SHELL", "curl -fs http://localhost:8080/status || exit 1"]
-      interval: 15s
-      retries: 40
-      start_period: 20m           # generous headroom for the import; the London extract is a few minutes
-      timeout: 10s
-
   prometheus:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -219,5 +183,4 @@ volumes:
   grafana:
   kafka:
   mosquitto:
-  nominatim:
   prometheus:

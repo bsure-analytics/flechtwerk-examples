@@ -2,7 +2,7 @@
 
 Runs the actual `MqttExtractor` via `Flechtwerk.run()` against an ephemeral
 Mosquitto and Kafka (testcontainers): publish an iSpindel reading over MQTT and
-assert the relayed reading lands on `fermentation.readings` in Kafka. This is
+assert the relayed reading lands on `fermentation-readings` in Kafka. This is
 the end-to-end path the unit tiers can only mock.
 """
 import asyncio

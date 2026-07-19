@@ -1,6 +1,6 @@
 """Verifier — the executable exactly-once claim.
 
-Reads `chaos.output` with a **read_committed** consumer (so aborted transactions
+Reads `chaos-output` with a **read_committed** consumer (so aborted transactions
 from SIGKILLed runs are invisible) and checks the two things EOS promises:
 
 - **zero duplicates** — every ``n`` appears exactly once (``total == distinct``),

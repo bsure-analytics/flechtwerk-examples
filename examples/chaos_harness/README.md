@@ -4,7 +4,7 @@ The repo's strongest claim, made executable: **SIGKILL the transformer mid-batch
 on a loop, and downstream still shows zero duplicates and zero gaps.**
 
 ```
-chaos.input ──▶ sequencer (Transformer) ──▶ chaos.output ──▶ ClickHouse: chaos_output
+chaos-input ──▶ sequencer (Transformer) ──▶ chaos-output ──▶ ClickHouse: chaos_output
    0..N-1        state = a running counter      {n, seq}         (read_committed)
                         ▲
                  chaos.py: SIGKILL, restart, SIGKILL, …
@@ -55,7 +55,7 @@ PASS — exactly once despite the kills
 ```
 
 The verifier makes the claim two independent ways: a **read_committed** Kafka
-consumer over `chaos.output`, and one ClickHouse query over the sunk table (the
+consumer over `chaos-output`, and one ClickHouse query over the sunk table (the
 stack configures the Kafka engine to read committed too, so aborted transactions
 are never even ingested).
 

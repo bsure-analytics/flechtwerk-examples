@@ -49,8 +49,8 @@ def _make_module(stage: AdsbSink, records: list) -> _FlechtwerkModule:
 
 
 POSITION = {"hex": "abc123", "flight": "BAW123", "alt_baro": 30000, "gs": 420.0,
-            "lat": 51.5, "lon": -0.4, "region": "london", "polled_at": "2026-07-17T12:00:00Z", "is_deleted": 0}
-TOMBSTONE = {"hex": "gone99", "region": "london", "polled_at": "2026-07-17T12:00:05Z", "is_deleted": 1}
+            "lat": 51.5, "lon": -0.4, "requested_region": "london", "polled_at": "2026-07-17T12:00:00Z", "is_deleted": 0}
+TOMBSTONE = {"hex": "gone99", "requested_region": "london", "polled_at": "2026-07-17T12:00:05Z", "is_deleted": 1}
 
 
 async def test_sink_inserts_positions_skips_tombstones_and_emits_nothing() -> None:
@@ -66,7 +66,7 @@ async def test_sink_inserts_positions_skips_tombstones_and_emits_nothing() -> No
     table, rows, token = writer.inserts[0]
     assert table == "adsb_positions"
     assert rows[0]["hex"] == "abc123"
-    assert token == "adsb.aircraft:0:0"
+    assert token == "adsb-aircraft:0:0"
 
     # Pure sink: nothing produced to Kafka, but the batch runs in one task
     # transaction that advances the input offset.

@@ -17,8 +17,8 @@ from flechtwerk import Event, IncomingMessage, Message, State, transformer
 
 from .attributes import AT, BATCH, FLAT_COUNT, GRAVITY, KIND, LAST_GRAVITY
 
-READINGS_TOPIC = "fermentation.readings"
-ALERT_TOPIC = "fermentation.alerts"
+READINGS_TOPIC = "fermentation-readings"
+ALERT_TOPIC = "fermentation-alerts"
 
 FINAL_GRAVITY = 1.010
 """At or below this, fermentation is finished — time to bottle."""

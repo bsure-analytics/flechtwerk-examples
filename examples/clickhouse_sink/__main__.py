@@ -1,7 +1,7 @@
 """Run the ClickHouse sink stage against the shared stack.
 
     uv run poe setup-sink        # ensure the input topic + apply the schema
-    uv run poe run-adsb          # (example 1) run the pipeline -> adsb.aircraft
+    uv run poe run-adsb          # (example 1) run the pipeline -> adsb-aircraft
     uv run poe run-sink          # then run this
 
 A transformer needs no poll_interval. See the module docstring in ``sink.py`` for
