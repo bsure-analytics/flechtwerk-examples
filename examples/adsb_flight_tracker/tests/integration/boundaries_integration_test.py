@@ -21,36 +21,49 @@ import pytest
 from flechtwerk.attribute import Record
 
 from examples.adsb_flight_tracker.attributes import ISO3, NEAREST_PLACE, OVER_COUNTRY
-from examples.adsb_flight_tracker.boundaries import ADMIN_LEVELS, region_dict
+from examples.adsb_flight_tracker.boundaries import ADMIN_LEVELS, WORLD_DICT, region_dict
 from examples.adsb_flight_tracker.enrich import WikidataClickHouseEnricher
 
 pytestmark = pytest.mark.integration
 
 _GEOM = "Array(Array(Array(Tuple(Float64, Float64))))"
-_DDL = [
-    f"CREATE TABLE flechtwerk.world_boundaries (geometry {_GEOM}, country String, iso3 String, "
-    "loaded_at DateTime) ENGINE = MergeTree ORDER BY iso3",
-    f"CREATE DICTIONARY flechtwerk.world_boundaries_dict (geometry {_GEOM}, country String, iso3 String) "
-    "PRIMARY KEY geometry SOURCE(CLICKHOUSE(TABLE 'world_boundaries' DB 'flechtwerk')) "
-    "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))",
-    f"CREATE TABLE flechtwerk.region_boundaries (geometry {_GEOM}, name String, iso3 String, "
-    "admin_level LowCardinality(String), loaded_at DateTime) ENGINE = MergeTree ORDER BY (iso3, name)",
-    *(f"CREATE DICTIONARY {region_dict(level)} (geometry {_GEOM}, name String) PRIMARY KEY geometry "
-      f"SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''{level}''')) "
-      "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))"
-      for level in ADMIN_LEVELS),
-]
+
+
+def _ddl(user: str, password: str) -> list[str]:
+    """The shipped boundary DDL (``clickhouse.sql``), reshaped for the testcontainer.
+
+    One deviation from production: each POLYGON dictionary's ``CLICKHOUSE`` source names
+    ``USER``/``PASSWORD`` explicitly. A dictionary reload opens a fresh connection back to
+    the server to read its source table, and with no user named it falls back to ``default``.
+    The compose stack keeps a passwordless ``default`` (so ``clickhouse.sql`` omits the
+    clause), but the testcontainer's ``CLICKHOUSE_USER`` removes ``default`` outright, leaving
+    only this dedicated user — so the reload must authenticate as it, or it fails REQUIRED_PASSWORD.
+    """
+    src = f"USER '{user}' PASSWORD '{password}'"
+    return [
+        f"CREATE TABLE flechtwerk.world_boundaries (geometry {_GEOM}, country String, iso3 String, "
+        "loaded_at DateTime) ENGINE = MergeTree ORDER BY iso3",
+        f"CREATE DICTIONARY flechtwerk.world_boundaries_dict (geometry {_GEOM}, country String, iso3 String) "
+        f"PRIMARY KEY geometry SOURCE(CLICKHOUSE(TABLE 'world_boundaries' DB 'flechtwerk' {src})) "
+        "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))",
+        f"CREATE TABLE flechtwerk.region_boundaries (geometry {_GEOM}, name String, iso3 String, "
+        "admin_level LowCardinality(String), loaded_at DateTime) ENGINE = MergeTree ORDER BY (iso3, name)",
+        *(f"CREATE DICTIONARY {region_dict(level)} (geometry {_GEOM}, name String) PRIMARY KEY geometry "
+          f"SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''{level}''' {src})) "
+          "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))"
+          for level in ADMIN_LEVELS),
+    ]
 
 _BIG = [[[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]]]]   # country + ADM1
 _SMALL = [[[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]     # ADM2 inside it
-_TWIN1 = [[[[7.0, 7.0], [9.0, 9.0], [7.0, 9.0], [7.0, 7.0]]]]                 # ADM1 "Twinvale"
-_TWIN2 = [[[[7.0, 7.0], [8.0, 8.0], [7.0, 8.0], [7.0, 7.0]]]]                 # ADM2 "Twinvale" inside it
+_TWIN1 = [[[[7.0, 7.0], [9.0, 7.0], [9.0, 9.0], [7.0, 9.0], [7.0, 7.0]]]]     # ADM1 "Twinvale"
+_TWIN2 = [[[[7.0, 7.0], [8.0, 7.0], [8.0, 8.0], [7.0, 8.0], [7.0, 7.0]]]]     # ADM2 "Twinvale" inside it
 
 
 async def test_staged_hierarchical_reverse_geocoder_on_real_clickhouse(clickhouse: dict) -> None:
     auth = httpx.BasicAuth(clickhouse["user"], clickhouse["password"])
     async with httpx.AsyncClient(base_url=clickhouse["base_url"], auth=auth) as ch:
-        for statement in _DDL:
+        for statement in _ddl(clickhouse["user"], clickhouse["password"]):
             (await ch.post("/", content=statement)).raise_for_status()
         rows = [
             ("world_boundaries", {"geometry": _BIG, "country": "Testland", "iso3": "TST", "loaded_at": 1_700_000_000}),
@@ -66,8 +79,8 @@ async def test_staged_hierarchical_reverse_geocoder_on_real_clickhouse(clickhous
         for table, row in rows:
             (await ch.post("/", content=f"INSERT INTO flechtwerk.{table} FORMAT JSONEachRow\n"
                            + json.dumps(row))).raise_for_status()
-        for dict_name in ["world_boundaries_dict", *(region_dict(level) for level in ADMIN_LEVELS)]:
-            (await ch.post("/", content=f"SYSTEM RELOAD DICTIONARY flechtwerk.{dict_name}")).raise_for_status()
+        for dict_name in [WORLD_DICT, *(region_dict(level) for level in ADMIN_LEVELS)]:
+            (await ch.post("/", content=f"SYSTEM RELOAD DICTIONARY {dict_name}")).raise_for_status()
 
     enricher = WikidataClickHouseEnricher(
         clickhouse_url=clickhouse["base_url"] + "/",
