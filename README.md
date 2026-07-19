@@ -10,7 +10,7 @@ carries full scenarios with real infrastructure, pinned to a released PyPI
 version and upgraded deliberately. It doubles as an integration test of the
 published package, exercised exactly the way a consumer would use it.
 
-## What's inside
+## What's Inside
 
 A single batteries-included stack (`docker compose up`) plus one package per
 scenario under `examples/`:
@@ -43,7 +43,7 @@ uv run poe down         # stop the stack and delete its volumes
 The tasks above are [poethepoet](https://github.com/nat-n/poethepoet) targets
 declared in `pyproject.toml`; run `uv run poe` with no argument to list them all.
 
-## The stack
+## The Stack
 
 `docker compose up` (or `uv run poe up`) brings up six long-running services
 (plus a one-shot `kafka-init` that chowns the Kafka volume and exits):
@@ -95,14 +95,14 @@ uv run poe cov                # everything, with a coverage report
 The Docker-free tiers require no services running. The integration tier starts
 its own containers and skips cleanly when Docker is unreachable.
 
-## Issues and contributions
+## Issues and Contributions
 
 This repo is the home for Flechtwerk's runnable examples (they deliberately live
 here, not in the framework repo). Found a bug, or have a scenario you'd like to
 see? Open an issue or PR here. For the framework itself, use the
 [flechtwerk](https://github.com/bsure-analytics/flechtwerk) issue tracker.
 
-## Versioning policy
+## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
 (`flechtwerk[mqtt]==0.6.0`) with the full resolution captured in `uv.lock` —
