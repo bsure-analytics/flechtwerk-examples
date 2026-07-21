@@ -55,7 +55,8 @@ omit = [
 source = ["examples"]
 
 [tool.poe.tasks]
-down = { cmd = "docker compose down --volumes", help = "Stop the shared stack and delete its volumes" }
+down = { cmd = "docker compose down", help = "Stop the shared stack, preserving its volumes (Kafka offsets, ClickHouse data, Grafana state survive)" }
+clean = { cmd = "docker compose down --volumes", help = "Stop the shared stack AND delete its volumes (wipes Kafka, ClickHouse, Grafana — a full reset)" }
 up = { cmd = "docker compose up --detach --wait", help = "Start the shared stack and block until every service is healthy" }
 test = { cmd = "pytest", help = "Run the Docker-free tiers (pure-logic + runner-fake)" }
 test-all = { cmd = "pytest -m 'integration or not integration'", help = "Run every tier including integration (needs Docker)" }

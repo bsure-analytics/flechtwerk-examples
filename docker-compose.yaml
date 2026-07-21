@@ -1,7 +1,8 @@
 # Shared, batteries-included stack for every example.
 #
-#   docker compose up --wait     # or: uv run poe up
-#   docker compose down --volumes # or: uv run poe down
+#   docker compose up --wait      # or: uv run poe up
+#   docker compose down           # or: uv run poe down  (keeps volumes)
+#   docker compose down --volumes # or: uv run poe clean (wipes volumes)
 #
 # Examples run on the host (uv run poe run-<example>) and connect to the
 # broker at localhost:9092, MQTT at localhost:1883, and ClickHouse at

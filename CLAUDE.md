@@ -21,7 +21,8 @@ rather than inventing parallel ones.
 ```bash
 uv sync                     # venv + pinned dependencies (Python 3.14)
 uv run poe up               # start the shared stack, wait until healthy
-uv run poe down             # stop the stack, delete its volumes
+uv run poe down             # stop the stack, preserving its volumes
+uv run poe clean            # stop the stack AND delete its volumes (full reset)
 uv run poe test             # unit tiers (pure-logic + runner-fake) — Docker-free
 uv run poe test-integration # integration tier — testcontainers (needs Docker)
 uv run poe test-all         # every tier (what CI runs)
