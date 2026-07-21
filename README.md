@@ -1,12 +1,16 @@
 # Flechtwerk Examples
 
-<p align="center">
+<div align="center">
+  <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
   <a href="https://bsure-analytics.github.io/flechtwerk/"><img src="https://img.shields.io/badge/docs-online-6d2530" alt="Documentation"></a>
   <a href="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml"><img src="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/flechtwerk/0.7.1/"><img src="https://img.shields.io/badge/flechtwerk-0.7.1-6d2530" alt="Pinned flechtwerk version"></a>
   <img src="https://img.shields.io/badge/python-3.14-blue.svg" alt="Python 3.14">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-</p>
+  <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
+</div>
+
+<p align="center"><strong>Easy + Reliable + Scalable =&gt; Productive</strong></p>
 
 Complete, runnable examples for [Flechtwerk](https://github.com/bsure-analytics/flechtwerk) —
 an async stream-processing framework for Kafka with real transactions for
@@ -19,9 +23,9 @@ version and upgraded deliberately. It doubles as an integration test of the
 published package, exercised exactly the way a consumer would use it.
 
 <p align="center">
-  <a href="examples/adsb_flight_tracker"><img src="images/adsb-grafana.png" width="49%" alt="ADS-B Flight Tracker — the live Grafana dashboard (enriched aircraft map, aviation-events feed, stats)"></a>
+  <a href="examples/adsb_flight_tracker"><img src="assets/adsb-grafana.png" width="49%" alt="ADS-B Flight Tracker — the live Grafana dashboard (enriched aircraft map, aviation-events feed, stats)"></a>
   &nbsp;
-  <a href="examples/gdelt_news_stories"><img src="images/gdelt-grafana.png" width="49%" alt="GDELT News Stories — the live Grafana dashboard (breaking-news velocity, tone map, top stories)"></a>
+  <a href="examples/gdelt_news_stories"><img src="assets/gdelt-grafana.png" width="49%" alt="GDELT News Stories — the live Grafana dashboard (breaking-news velocity, tone map, top stories)"></a>
 </p>
 <p align="center"><em>Two of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a> and <a href="examples/gdelt_news_stories">GDELT News Stories</a>.</em></p>
 

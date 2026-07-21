@@ -8,7 +8,7 @@ an aviation-events stream (emergencies, rapid descents, going-dark), and near-mi
 conflict detection. No hardware, no API key.
 
 <p align="center">
-  <img src="../../images/adsb-grafana.png" width="100%" alt="The ADS-B Flight Tracker Grafana dashboard — a live world map of enriched aircraft, a derived aviation-events feed, and summary stat tiles">
+  <img src="../../assets/adsb-grafana.png" width="100%" alt="The ADS-B Flight Tracker Grafana dashboard — a live world map of enriched aircraft, a derived aviation-events feed, and summary stat tiles">
 </p>
 <p align="center"><em>Live in Grafana: enriched aircraft on the map, derived aviation events, and at-a-glance stats.</em></p>
 

@@ -6,7 +6,7 @@ same event) and **coverage analytics** (who is covering what, breaking-news spik
 globally a story is carried), sunk to ClickHouse and shown in Grafana.
 
 <p align="center">
-  <img src="../../images/gdelt-grafana.png" width="100%" alt="The GDELT News Stories Grafana dashboard — breaking-news velocity, a tone-coloured world map, and top-stories tables with coverage spread">
+  <img src="../../assets/gdelt-grafana.png" width="100%" alt="The GDELT News Stories Grafana dashboard — breaking-news velocity, a tone-coloured world map, and top-stories tables with coverage spread">
 </p>
 <p align="center"><em>Live in Grafana: breaking-news velocity, a tone-coloured world map, and top stories by coverage.</em></p>
 
