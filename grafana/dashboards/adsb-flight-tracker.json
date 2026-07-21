@@ -32,7 +32,7 @@
       "type": "geomap",
       "title": "Live positions",
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-      "gridPos": { "h": 21, "w": 18, "x": 0, "y": 4 },
+      "gridPos": { "h": 27, "w": 18, "x": 0, "y": 4 },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "options": {
         "basemap": { "type": "default", "name": "Basemap" },
@@ -72,7 +72,7 @@
       "type": "table",
       "title": "Aircraft in view (enriched)",
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-      "gridPos": { "h": 21, "w": 6, "x": 18, "y": 4 },
+      "gridPos": { "h": 27, "w": 6, "x": 18, "y": 4 },
       "fieldConfig": {
         "defaults": {},
         "overrides": [
