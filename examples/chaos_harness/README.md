@@ -3,11 +3,16 @@
 The repo's strongest claim, made executable: **SIGKILL the transformer mid-batch,
 on a loop, and downstream still shows zero duplicates and zero gaps.**
 
-```
-chaos-input ──▶ sequencer (Transformer) ──▶ chaos-output ──▶ ClickHouse: chaos_output
-   0..N-1        state = a running counter      {n, seq}         (read_committed)
-                        ▲
-                 chaos.py: SIGKILL, restart, SIGKILL, …
+```mermaid
+flowchart LR
+    IN(["chaos-input<br/>0..N-1"]):::topic --> SEQ["sequencer (Transformer)<br/>state = a running counter"]:::process
+    SEQ --> OUT(["chaos-output<br/>{n, seq}"]):::topic
+    OUT --> CH[("ClickHouse: chaos_output<br/>(read_committed)")]:::store
+    K{{"chaos.py: SIGKILL, restart, SIGKILL, …"}}:::ext -. kills mid-batch .-> SEQ
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
 ```
 
 ## What it proves

@@ -5,16 +5,32 @@ pre-enriched article/event distillate into **stories** (clusters of articles cov
 same event) and **coverage analytics** (who is covering what, breaking-news spikes, how
 globally a story is carried), sunk to ClickHouse and shown in Grafana.
 
-```
-lastupdate.txt ──▶ GdeltIngest ──▶ gdelt-events-raw ───┐ (by GlobalEventID)
- (+ -translation)   (Extractor)                         ├─▶ GdeltEventCoverage ─▶ gdelt-event-coverage ─┐
-  polls, verifies    State = per-feed  gdelt-mentions-raw┘ (by GlobalEventID)     (Transformer: join)    │
-  md5+size, unzips,   resume cursor                                                                       ├─▶ GdeltSink ─▶ ClickHouse ─▶ Grafana
-  emits every row     (file timestamp) gdelt-gkg-raw ──▶ GdeltStories ──▶ gdelt-stories ─────────────────┘   (Transformer,
-                       (1 partition,     (by URL)         (Transformer: online clustering,      ▲               idempotent)
-                        keyed by URL)                      re-keyed to one bucket, State=clusters)│
-                    OutletLoader ──▶ gdelt-outlets (config topic: domain → name/country) ─────────┘
-                    (Extractor, bundled CSV)  consumed by GdeltStories for coverage spread
+<p align="center">
+  <img src="../../images/gdelt-grafana.png" width="100%" alt="The GDELT News Stories Grafana dashboard — breaking-news velocity, a tone-coloured world map, and top-stories tables with coverage spread">
+</p>
+<p align="center"><em>Live in Grafana: breaking-news velocity, a tone-coloured world map, and top stories by coverage.</em></p>
+
+```mermaid
+flowchart LR
+    PTR{{"lastupdate.txt<br/>(+ -translation)"}}:::ext --> ING["GdeltIngest (Extractor)<br/>verify md5+size, unzip, emit rows<br/>State = per-feed cursor (file ts)"]:::process
+    ING --> EVR(["gdelt-events-raw<br/>(by GlobalEventID)"]):::topic
+    ING --> MNR(["gdelt-mentions-raw<br/>(by GlobalEventID)"]):::topic
+    ING --> GKR(["gdelt-gkg-raw<br/>(1 partition, by URL)"]):::topic
+    EVR --> COV["GdeltEventCoverage<br/>(Transformer: co-partitioned join)"]:::process
+    MNR --> COV
+    GKR --> STO["GdeltStories<br/>(Transformer: online clustering,<br/>one-bucket State = clusters)"]:::process
+    OUTL["OutletLoader (Extractor)<br/>bundled CSV"]:::process --> OUT(["gdelt-outlets<br/>(config: domain → name/country)"]):::topic
+    OUT -->|"coverage spread"| STO
+    COV --> COVT(["gdelt-event-coverage"]):::topic
+    STO --> STOT(["gdelt-stories"]):::topic
+    COVT --> SINK["GdeltSink (Transformer)<br/>idempotent"]:::process
+    STOT --> SINK
+    SINK --> CH[("ClickHouse")]:::store
+    CH --> GRAF{{"Grafana"}}:::ext
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
 ```
 
 ## What it demonstrates

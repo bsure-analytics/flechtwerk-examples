@@ -6,9 +6,14 @@ example 1, which sinks the same topic with ClickHouse's Kafka *engine* — the
 shortcut. This example does it the way the framework teaches, so the trade-off
 is visible in the code.
 
-```
-adsb-aircraft ──▶ AdsbSink (Transformer) ──insert (idempotent)──▶ ClickHouse: adsb_positions
-                  transform() = a ClickHouse write
+```mermaid
+flowchart LR
+    IN(["adsb-aircraft"]):::topic --> SINK["AdsbSink (Transformer)<br/>transform() = a ClickHouse write"]:::process
+    SINK -->|"insert (idempotent)"| CH[("ClickHouse: adsb_positions")]:::store
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
 ```
 
 ## The one teaching point

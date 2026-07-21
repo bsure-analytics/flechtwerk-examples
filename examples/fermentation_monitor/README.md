@@ -5,11 +5,16 @@ readings from MQTT into Kafka — **ACKing the broker only after Kafka has the
 data** — and a stateful transformer tracks each batch's gravity curve, alerting
 on a stall and tombstoning the batch when fermentation finishes.
 
-```
-ispindel/<batch> ──MQTT──▶ bridge (MqttExtractor) ──▶ fermentation-readings ──▶ monitor (Transformer) ──▶ fermentation-alerts
-   (simulator)             ACK after Kafka has it        gravity curve            per-batch state:          (stall / complete)
-                                                                                  stall → alert
-                                                                                  bottled → tombstone
+```mermaid
+flowchart LR
+    DEV{{"ispindel/&lt;batch&gt;<br/>(simulator)"}}:::ext -->|MQTT| BR["bridge (MqttExtractor)<br/>ACK after Kafka has it"]:::process
+    BR --> RD(["fermentation-readings<br/>gravity curve"]):::topic
+    RD --> MON["monitor (Transformer)<br/>per-batch state:<br/>stall → alert · bottled → tombstone"]:::process
+    MON --> AL(["fermentation-alerts<br/>(stall / complete)"]):::topic
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
 ```
 
 ## What it demonstrates

@@ -18,6 +18,13 @@ carries full scenarios with real infrastructure, pinned to a released PyPI
 version and upgraded deliberately. It doubles as an integration test of the
 published package, exercised exactly the way a consumer would use it.
 
+<p align="center">
+  <a href="examples/adsb_flight_tracker"><img src="images/adsb-grafana.png" width="49%" alt="ADS-B Flight Tracker — the live Grafana dashboard (enriched aircraft map, aviation-events feed, stats)"></a>
+  &nbsp;
+  <a href="examples/gdelt_news_stories"><img src="images/gdelt-grafana.png" width="49%" alt="GDELT News Stories — the live Grafana dashboard (breaking-news velocity, tone map, top stories)"></a>
+</p>
+<p align="center"><em>Two of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a> and <a href="examples/gdelt_news_stories">GDELT News Stories</a>.</em></p>
+
 ## What's Inside
 
 A single batteries-included stack (`docker compose up`) plus one package per
@@ -45,7 +52,7 @@ Each example is self-contained under its own directory with its own README.
 uv sync                 # create the venv and install the pinned dependencies
 uv run poe up           # start the shared stack, wait until healthy
 uv run poe adsb         # set up + run the ADS-B flight tracker (stays in the foreground)
-uv run poe request-region "Brussels" 200   # (second terminal) track a region; radius in nautical miles
+uv run poe request-region "Brussels" 250   # (second terminal) track a region; radius in nautical miles
 uv run poe down         # stop the stack, preserving its volumes (resume later)
 uv run poe clean        # stop the stack AND wipe its volumes (a full reset)
 ```

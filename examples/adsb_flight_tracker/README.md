@@ -7,14 +7,32 @@ does that better) — it **derives** what a raw feed can't: live-enriched aircra
 an aviation-events stream (emergencies, rapid descents, going-dark), and near-miss
 conflict detection. No hardware, no API key.
 
-```
-adsb-regions ─▶ AdsbIngest ─▶ adsb-raw ─▶ AdsbEnrich ─┬─▶ adsb-aircraft ─▶ ClickHouse ─▶ Grafana
- (poll targets)  (Extractor)  (by region) (Transformer)├─▶ adsb-events   ─▶ ClickHouse ─▶ Grafana
-  polls adsb.lol                                ▲   │  └─▶ adsb-cells ─┐
-                                        dictGet │   │ ISO-3            ▼
-   world + region ◀── ClickHouse polygon dicts ─┘   ▼    AdsbConflict (Transformer) ─▶ adsb-events
-   maps          ◀── CountryLoader ◀── adsb-countries   per-cell positions (State)     (baby TCAS)
-                     (Extractor)     (countries seen by enrich)
+<p align="center">
+  <img src="../../images/adsb-grafana.png" width="100%" alt="The ADS-B Flight Tracker Grafana dashboard — a live world map of enriched aircraft, a derived aviation-events feed, and summary stat tiles">
+</p>
+<p align="center"><em>Live in Grafana: enriched aircraft on the map, derived aviation events, and at-a-glance stats.</em></p>
+
+```mermaid
+flowchart LR
+    REG(["adsb-regions<br/>(poll targets)"]):::topic --> ING["AdsbIngest (Extractor)<br/>polls adsb.lol"]:::process
+    ING --> RAW(["adsb-raw<br/>(by region)"]):::topic
+    RAW --> ENR["AdsbEnrich (Transformer)"]:::process
+    ENR --> AC(["adsb-aircraft"]):::topic
+    ENR --> EV(["adsb-events"]):::topic
+    ENR --> CELL(["adsb-cells"]):::topic
+    ENR -->|"ISO-3 (countries seen by enrich)"| CTRY(["adsb-countries"]):::topic
+    AC --> CH[("ClickHouse")]:::store
+    EV --> CH
+    CH --> GRAF{{"Grafana"}}:::ext
+    CELL --> CONF["AdsbConflict (Transformer)<br/>per-cell positions State — baby TCAS"]:::process
+    CONF --> EV
+    CTRY --> LOAD["CountryLoader (Extractor)"]:::process
+    LOAD --> DICTS[("ClickHouse polygon dicts<br/>world + region maps")]:::store
+    DICTS -->|dictGet| ENR
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
 ```
 
 Reverse geocoding is **staged and traffic-driven**: `CountryLoader` loads a global country
@@ -121,7 +139,7 @@ uv run poe request-region "London"   # ...then request a region to track (repeat
 # ...or step by step:
 uv run poe setup-adsb                # create topics + ClickHouse schema (nothing seeded)
 uv run poe run-adsb                  # all four stages, restart-on-crash
-uv run poe request-region "Berlin" 150   # write a region (+ optional radius, nm) to adsb-regions
+uv run poe request-region "Berlin" 250   # write a region (+ optional radius, nm) to adsb-regions
 # ...or one stage per shell:
 uv run poe run-adsb-boundaries # stage 0: world map at startup + per-country maps on demand
 uv run poe run-adsb-ingest     # stage 1: ingest adsb.lol -> adsb-raw
