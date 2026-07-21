@@ -1,0 +1,176 @@
+{
+  "uid": "flechtwerk-gdelt",
+  "title": "Flechtwerk — GDELT News Stories",
+  "tags": ["flechtwerk", "gdelt"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Stories tracked",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT count() FROM flechtwerk.gdelt_stories FINAL"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Events covered",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT count() FROM flechtwerk.gdelt_event_coverage FINAL WHERE event_seen = 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Single-country stories",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT count() FROM flechtwerk.gdelt_stories FINAL WHERE country_count = 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Total mentions",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT sum(mention_count) FROM flechtwerk.gdelt_event_coverage FINAL"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Breaking now — top stories by coverage (article count)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "continuous-BlPu" } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "showValue": "auto", "xTickLabelRotation": 0, "legend": { "showLegend": false }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT arrayStringConcat(arraySlice(top_entities, 1, 3), ', ') AS story, article_count FROM flechtwerk.gdelt_stories FINAL ORDER BY article_count DESC, last_seen DESC LIMIT 15"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "geomap",
+      "title": "Where the news is (event location, tone-coloured)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": {}, "color": { "mode": "continuous-RdYlGr" } },
+        "overrides": []
+      },
+      "options": {
+        "basemap": { "type": "default", "name": "Basemap" },
+        "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": true },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Events",
+            "location": { "mode": "auto" },
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": { "field": "mentions", "fixed": 5, "min": 3, "max": 12 },
+                "color": { "field": "tone" },
+                "opacity": 0.6,
+                "symbol": { "fixed": "img/icons/marker/circle.svg" }
+              }
+            }
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "view": { "id": "zero", "lat": 20, "lon": 0, "zoom": 2 }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT action_geo_fullname AS place, round(avg_tone, 2) AS tone, mention_count AS mentions, action_lat AS latitude, action_lon AS longitude FROM flechtwerk.gdelt_event_coverage FINAL WHERE action_lat IS NOT NULL AND action_lon IS NOT NULL AND (action_lat != 0 OR action_lon != 0)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Top stories",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 13, "w": 16, "x": 0, "y": 15 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "sample" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open article", "url": "${__data.fields.sample}", "targetBlank": true } ] } ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "articles", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT arrayStringConcat(arraySlice(top_entities, 1, 6), ', ') AS entities, article_count AS articles, country_count AS countries_n, arrayStringConcat(countries, ', ') AS countries, arrayStringConcat(arraySlice(source_domains, 1, 6), ', ') AS outlets, round(avg_tone, 2) AS tone, sample_url AS sample FROM flechtwerk.gdelt_stories FINAL ORDER BY article_count DESC, last_seen DESC LIMIT 200"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Single-country coverage (one country's outlets only)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 13, "w": 8, "x": 16, "y": 15 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "articles", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT arrayStringConcat(arraySlice(top_entities, 1, 5), ', ') AS entities, countries[1] AS country, article_count AS articles FROM flechtwerk.gdelt_stories FINAL WHERE country_count = 1 ORDER BY article_count DESC, last_seen DESC LIMIT 200"
+        }
+      ]
+    }
+  ]
+}

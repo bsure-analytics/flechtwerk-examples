@@ -1,0 +1,3 @@
+71677 3c57c15f9c65770f3a10580882d3e64f http://data.gdeltproject.org/gdeltv2/20260721081500.translation.export.CSV.zip
+90449 90f953cefd7b4df1773e1e37d164cd09 http://data.gdeltproject.org/gdeltv2/20260721081500.translation.mentions.CSV.zip
+1520372 61f78fd90d450f1484c2e7290996c925 http://data.gdeltproject.org/gdeltv2/20260721081500.translation.gkg.csv.zip

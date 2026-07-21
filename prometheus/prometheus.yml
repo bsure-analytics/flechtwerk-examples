@@ -35,3 +35,14 @@ scrape_configs:
         labels: { example: fermentation_monitor }
       - targets: ["host.docker.internal:9104"]
         labels: { example: fermentation_monitor }
+      # gdelt_news_stories runs four metricked host stages under one example label:
+      # ingest (9108), the coverage join (9109), stories clustering (9110), and the
+      # sink (9111). The outlet loader runs metrics-off (near-idle after one publish).
+      - targets: ["host.docker.internal:9108"]
+        labels: { example: gdelt_news_stories }
+      - targets: ["host.docker.internal:9109"]
+        labels: { example: gdelt_news_stories }
+      - targets: ["host.docker.internal:9110"]
+        labels: { example: gdelt_news_stories }
+      - targets: ["host.docker.internal:9111"]
+        labels: { example: gdelt_news_stories }

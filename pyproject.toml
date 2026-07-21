@@ -76,6 +76,12 @@ setup-fermentation = { cmd = "python -m examples.fermentation_monitor.setup", he
 run-fermentation = { cmd = "python -m examples.fermentation_monitor bridge", help = "Run the MQTT->Kafka bridge (ACK after Kafka)" }
 run-fermentation-monitor = { cmd = "python -m examples.fermentation_monitor monitor", help = "Run the stateful gravity monitor (stall + bottling)" }
 simulate-fermentation = { cmd = "python -m examples.fermentation_monitor.simulator", help = "Publish simulated hydrometer readings over MQTT (no hardware)" }
+setup-gdelt = { cmd = "python -m examples.gdelt_news_stories.setup", help = "Create the GDELT topics, seed the feed/outlet configs, apply the ClickHouse schema" }
+run-gdelt-outlets = { cmd = "python -m examples.gdelt_news_stories outlets", help = "Run the GDELT outlet loader: publish the bundled outlet table to gdelt-outlets" }
+run-gdelt-ingest = { cmd = "python -m examples.gdelt_news_stories ingest", help = "Run GDELT stage 1: poll the feed -> gdelt-{events,mentions,gkg}-raw" }
+run-gdelt-coverage = { cmd = "python -m examples.gdelt_news_stories coverage", help = "Run GDELT stage 2a: the Events x Mentions co-partitioned join -> gdelt-event-coverage" }
+run-gdelt-stories = { cmd = "python -m examples.gdelt_news_stories stories", help = "Run GDELT stage 2b: online clustering of GKG articles -> gdelt-stories" }
+run-gdelt-sink = { cmd = "python -m examples.gdelt_news_stories sink", help = "Run GDELT stage 3: sink stories + coverage into ClickHouse (idempotent)" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -131,6 +137,26 @@ wait
 [tool.poe.tasks.fermentation]
 help = "Quickstart: set up fermentation topics/schema, then run the whole demo (bridge + monitor + simulator)"
 sequence = ["setup-fermentation", "run-fermentation-all"]
+
+[tool.poe.tasks.run-gdelt]
+help = "Run all five GDELT stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# The same poor-man's supervisor as run-adsb (see its notes on the process-group / Ctrl-C
+# handling): plain `python -m` children in this shell's process group, and a trap that
+# `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned — with `trap "" TERM` so
+# this shell survives its own `kill 0` and exits 0 for poe. Each stage runs in its own
+# restart loop; state restores from the changelog after a crash.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-gdelt] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in outlets ingest coverage stories sink; do
+  supervise python -m examples.gdelt_news_stories $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.gdelt]
+help = "Quickstart: set up GDELT topics/configs/schema, then run all five stages (restart-on-crash)"
+sequence = ["setup-gdelt", "run-gdelt"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"

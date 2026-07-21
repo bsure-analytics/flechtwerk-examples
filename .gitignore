@@ -11,6 +11,7 @@
 .vscode/
 /.claude/settings.local.json
 /CLAUDE.local.md
+/examples/gdelt_news_stories/NOTES.md
 /graphify-out/
 __pycache__/
 build/

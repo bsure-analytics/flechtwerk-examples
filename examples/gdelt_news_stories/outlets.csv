@@ -1,0 +1,70 @@
+domain,name,country
+bbc.co.uk,BBC,GB
+bbc.com,BBC,GB
+theguardian.com,The Guardian,GB
+telegraph.co.uk,The Telegraph,GB
+ft.com,Financial Times,GB
+reuters.com,Reuters,GB
+dailymail.co.uk,Daily Mail,GB
+independent.co.uk,The Independent,GB
+mirror.co.uk,The Mirror,GB
+thetimes.co.uk,The Times,GB
+sky.com,Sky News,GB
+nytimes.com,The New York Times,US
+washingtonpost.com,The Washington Post,US
+wsj.com,The Wall Street Journal,US
+cnn.com,CNN,US
+foxnews.com,Fox News,US
+nbcnews.com,NBC News,US
+apnews.com,Associated Press,US
+bloomberg.com,Bloomberg,US
+politico.com,Politico,US
+usatoday.com,USA Today,US
+latimes.com,Los Angeles Times,US
+npr.org,NPR,US
+axios.com,Axios,US
+thehill.com,The Hill,US
+spiegel.de,Der Spiegel,DE
+zeit.de,Die Zeit,DE
+faz.net,Frankfurter Allgemeine,DE
+sueddeutsche.de,Sueddeutsche Zeitung,DE
+welt.de,Die Welt,DE
+handelsblatt.com,Handelsblatt,DE
+bild.de,Bild,DE
+tagesschau.de,Tagesschau,DE
+dw.com,Deutsche Welle,DE
+lemonde.fr,Le Monde,FR
+lefigaro.fr,Le Figaro,FR
+liberation.fr,Liberation,FR
+france24.com,France 24,FR
+rfi.fr,Radio France Internationale,FR
+elpais.com,El Pais,ES
+elmundo.es,El Mundo,ES
+lavanguardia.com,La Vanguardia,ES
+corriere.it,Corriere della Sera,IT
+repubblica.it,La Repubblica,IT
+ansa.it,ANSA,IT
+nrc.nl,NRC,NL
+volkskrant.nl,de Volkskrant,NL
+nos.nl,NOS,NL
+irishtimes.com,The Irish Times,IE
+rte.ie,RTE,IE
+thejournal.ie,TheJournal.ie,IE
+euronews.com,Euronews,EU
+politico.eu,Politico Europe,EU
+aljazeera.com,Al Jazeera,QA
+timesofisrael.com,The Times of Israel,IL
+haaretz.com,Haaretz,IL
+thehindu.com,The Hindu,IN
+timesofindia.indiatimes.com,The Times of India,IN
+indianexpress.com,The Indian Express,IN
+scmp.com,South China Morning Post,HK
+japantimes.co.jp,The Japan Times,JP
+abc.net.au,ABC News,AU
+smh.com.au,The Sydney Morning Herald,AU
+theage.com.au,The Age,AU
+cbc.ca,CBC,CA
+theglobeandmail.com,The Globe and Mail,CA
+nationalpost.com,National Post,CA
+moscowtimes.com,The Moscow Times,RU
+kyivindependent.com,The Kyiv Independent,UA
