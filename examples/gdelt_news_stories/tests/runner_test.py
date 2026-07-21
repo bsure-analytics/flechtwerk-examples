@@ -252,16 +252,14 @@ def _gkg(url: str, persons: str, *, domain: str, offset: int, file_ts: str = "20
 
 async def test_stories_cluster_dedup_and_annotate_coverage_from_outlets() -> None:
     stage = GdeltStories()
-    # Seed the gdelt-outlets config table directly (the framework's documented test seam).
-    stage.configs = ConfigStore.of({
-        "bbc.co.uk": Config({OUTLET_DOMAIN: "bbc.co.uk", OUTLET_COUNTRY: "GB"}),
-        "lemonde.fr": Config({OUTLET_DOMAIN: "lemonde.fr", OUTLET_COUNTRY: "FR"}),
-    })
+    # Seed gdelt-outlets with only a gTLD OVERRIDE (nytimes.com's country isn't derivable);
+    # the ccTLD outlet (bbc.co.uk) is deliberately NOT seeded — its country is derived.
+    stage.configs = ConfigStore.of({"nytimes.com": Config({OUTLET_DOMAIN: "nytimes.com", OUTLET_COUNTRY: "US"})})
     shared = "Keir Starmer,1;Andy Burnham,2;John Healey,3"
     mod = _make_module(stage, [
-        _gkg("http://a", shared, domain="bbc.co.uk", offset=0),
-        _gkg("http://b", shared + ";Rachel Reeves,4", domain="lemonde.fr", offset=1),  # same story, FR outlet
-        _gkg("http://a", shared, domain="bbc.co.uk", offset=2),                        # re-crawl → deduped
+        _gkg("http://a", shared, domain="nytimes.com", offset=0),                    # US via config override
+        _gkg("http://b", shared + ";Rachel Reeves,4", domain="bbc.co.uk", offset=1),  # GB via ccTLD fallback
+        _gkg("http://a", shared, domain="nytimes.com", offset=2),                    # re-crawl → deduped
     ])
     await _process(mod)
 
@@ -269,6 +267,6 @@ async def test_stories_cluster_dedup_and_annotate_coverage_from_outlets() -> Non
     assert len(stories) == 2                          # a spawned, b joined, the re-crawl emitted nothing
     latest = stories[-1]
     assert latest["article_count"] == 2               # two distinct articles clustered
-    assert latest["country_count"] == 2               # GB + FR → annotated coverage spread
-    assert sorted(latest["countries"]) == ["FR", "GB"]
+    assert latest["country_count"] == 2               # override (US) + derived (GB) coverage spread
+    assert sorted(latest["countries"]) == ["GB", "US"]  # GB derived from .co.uk, US from the override
     assert await mod.runner.tasks[0].store.get("clusters") is not None  # single bucket persisted

@@ -1,16 +1,18 @@
-"""The bundled outlet table — the domain → name/country lookup for coverage spread.
+"""The bundled outlet-country **override** table (the non-derivable domain → country cases).
 
-``outlets.csv`` is objective metadata only (domain, name, country); :func:`outlet_messages`
-projects it into ``gdelt-outlets`` records. ``setup.py`` seeds them onto the compacted
-``gdelt-outlets`` **config topic** (a one-shot producer — the table is static bundled data,
-so it needs no polling stage), and ``GdeltStories`` joins that topic GlobalKTable-style to
-annotate each story's coverage spread (how many distinct countries' outlets carry it). Any
+Most outlets' country is derived at runtime from the ccTLD (``bbc.co.uk`` → GB; see
+``stories.country_from_tld``), so they need no data. ``outlets.csv`` holds only what *can't*
+be derived: gTLD outlets (``nytimes.com`` → US, ``manilatimes.net`` → PH) whose country is
+editorial knowledge, not encoded in the domain. :func:`outlet_messages` projects it into
+``gdelt-outlets`` records; ``setup.py`` seeds them onto the compacted ``gdelt-outlets``
+**config topic** (a one-shot producer — static bundled data, no polling stage), and
+``GdeltStories`` looks an override up GlobalKTable-style, falling back to the ccTLD. Any
 producer can write ``gdelt-outlets`` directly (Kafbat included) — this is just the
 convenient, idempotent seed.
 
-**Objective metadata only.** A Ground-News-style *leaning*/bias column would plug in right
-here — deliberately **not shipped** (see the README): the point is the streaming layer, and
-editorial-bias ratings carry baggage this demo won't take on.
+**Objective metadata only** (domain → country). A Ground-News-style *leaning*/bias column
+would plug in right here — deliberately **not shipped** (see the README): the point is the
+streaming layer, and editorial-bias ratings carry baggage this demo won't take on.
 """
 import csv
 import io

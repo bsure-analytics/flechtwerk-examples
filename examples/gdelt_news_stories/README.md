@@ -19,7 +19,7 @@ flowchart LR
     EVR --> COV["GdeltEventCoverage<br/>(Transformer: co-partitioned join)"]:::process
     MNR --> COV
     GKR --> STO["GdeltStories<br/>(Transformer: online clustering,<br/>one-bucket State = clusters)"]:::process
-    SEED{{"setup.py<br/>bundled outlets.csv"}}:::ext --> OUT(["gdelt-outlets<br/>(config: domain → name/country)"]):::topic
+    SEED{{"setup.py<br/>outlet overrides (gTLD)"}}:::ext --> OUT(["gdelt-outlets<br/>(config: gTLD outlet → country)"]):::topic
     OUT -->|"coverage spread"| STO
     COV --> COVT(["gdelt-event-coverage"]):::topic
     STO --> STOT(["gdelt-stories"]):::topic
@@ -50,11 +50,14 @@ Four primitives the other examples don't:
 3. **Online clustering in keyed state.** `GdeltStories` groups GKG articles into stories by
    thresholded feature-set similarity (overlap coefficient over persons ∪ orgs ∪ top themes),
    with URL dedup and TTL eviction — all in one keyed-state bucket.
-4. **Config-topic enrichment (GlobalKTable-style).** A bundled outlet table (`outlets.csv`)
-   is seeded onto the compacted `gdelt-outlets` config topic by `setup.py` — static data, so
-   no runtime stage; `GdeltStories` joins it as a lookup to annotate each story's **coverage
-   spread** (how many distinct countries' outlets carry it). Any producer can update
-   `gdelt-outlets` live (Kafbat included) and the change lands on the next batch.
+4. **Config-topic enrichment (GlobalKTable-style).** Each story is annotated with its
+   **coverage spread** — how many distinct countries' outlets carry it. An outlet's country
+   is *derived* from its ccTLD at runtime (`bbc.co.uk` → GB), so most domains need no data;
+   the compacted `gdelt-outlets` config topic carries only the **non-derivable overrides** —
+   gTLD outlets (`nytimes.com` → US) whose country is editorial knowledge — seeded from a
+   small bundled `outlets.csv` by `setup.py`. `GdeltStories` looks the override up
+   GlobalKTable-style and falls back to the ccTLD; any producer can update `gdelt-outlets`
+   live (Kafbat included) and the change lands on the next batch.
 
 Three lessons worth naming explicitly:
 

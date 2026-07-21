@@ -35,6 +35,7 @@ from examples.gdelt_news_stories.stories import (
     article_features,
     assign,
     cap,
+    country_from_tld,
     prune,
     similarity,
     story_record,
@@ -310,6 +311,15 @@ async def test_event_after_ttl_rebuilds_fresh() -> None:
 def _assign(clusters, seen, url, features, *, domain="x.com", country=None, tone=None, file_ts=T0):
     return assign(clusters, seen, url=url, features=set(features), domain=domain,
                   country=country, tone=tone, file_ts=file_ts)
+
+
+def test_country_from_tld_derives_cctld_and_skips_gtld() -> None:
+    assert country_from_tld("bbc.co.uk") == "GB"       # ccTLD → derived, no data needed
+    assert country_from_tld("spiegel.de") == "DE"
+    assert country_from_tld("abc.net.au") == "AU"
+    assert country_from_tld("nytimes.com") is None     # gTLD → not derivable (needs an override)
+    assert country_from_tld("startup.io") is None      # vanity ccTLD → deliberately excluded
+    assert country_from_tld("noTldHere") is None
 
 
 def test_similarity_is_the_overlap_coefficient() -> None:

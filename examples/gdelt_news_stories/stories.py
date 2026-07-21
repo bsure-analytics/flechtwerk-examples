@@ -82,6 +82,31 @@ STORIES_TOPIC = "gdelt-stories"
 CLUSTER_BUCKET = "clusters"
 """The single state key every article folds into (see the module docstring)."""
 
+# Country-code TLD → ISO country, for deriving an outlet's home country at runtime (so the
+# config table only needs the non-derivable gTLD outlets). News-relevant ccTLDs only;
+# vanity/ambiguous ones (co, io, me, tv, ai, ly, to, fm, cc, ws) and gTLDs are absent, so a
+# ``.io`` or ``.com`` domain derives nothing and falls to the config override (or stays
+# unannotated). ``.eu`` maps to EU, matching the config convention.
+CCTLD_COUNTRY: dict[str, str] = {
+    "uk": "GB", "au": "AU", "nz": "NZ", "za": "ZA", "ie": "IE", "ca": "CA", "in": "IN",
+    "pk": "PK", "bd": "BD", "lk": "LK", "np": "NP", "ph": "PH", "my": "MY", "sg": "SG",
+    "id": "ID", "th": "TH", "vn": "VN", "cn": "CN", "jp": "JP", "kr": "KR", "tw": "TW",
+    "hk": "HK", "de": "DE", "fr": "FR", "es": "ES", "it": "IT", "nl": "NL", "be": "BE",
+    "ch": "CH", "at": "AT", "se": "SE", "no": "NO", "dk": "DK", "fi": "FI", "is": "IS",
+    "pt": "PT", "gr": "GR", "pl": "PL", "cz": "CZ", "sk": "SK", "hu": "HU", "ro": "RO",
+    "bg": "BG", "hr": "HR", "si": "SI", "rs": "RS", "ua": "UA", "ru": "RU", "by": "BY",
+    "lt": "LT", "lv": "LV", "ee": "EE", "tr": "TR", "il": "IL", "ae": "AE", "sa": "SA",
+    "qa": "QA", "kw": "KW", "eg": "EG", "ma": "MA", "ng": "NG", "ke": "KE", "gh": "GH",
+    "tz": "TZ", "ug": "UG", "br": "BR", "ar": "AR", "mx": "MX", "cl": "CL", "pe": "PE",
+    "ve": "VE", "ec": "EC", "uy": "UY", "eu": "EU",
+}
+
+
+def country_from_tld(domain: str) -> str | None:
+    """Derive an outlet's country from its ccTLD (``bbc.co.uk`` → GB), or ``None`` for a
+    gTLD/vanity TLD whose country isn't encoded in the domain. Pure — no data, no I/O."""
+    return CCTLD_COUNTRY.get(domain.rsplit(".", 1)[-1]) if "." in domain else None
+
 SIMILARITY_THRESHOLD = 0.5
 """Overlap-coefficient floor to join an existing cluster (tune with the fixture). Overlap
 (``|A∩B| / min(|A|,|B|)``) not Jaccard, so a small article still matches a grown cluster —
@@ -286,10 +311,18 @@ class GdeltStories(Transformer):
         return CLUSTER_BUCKET  # every article → one bucket, so all clusters are co-visible
 
     def _country(self, domain: str) -> str | None:
-        """The outlet's home country from the ``gdelt-outlets`` config table (``None`` if
-        the domain is unknown — unknown outlets pass through unannotated)."""
+        """The outlet's home country: a ``gdelt-outlets`` override if present, else derived
+        from the domain's country-code TLD (:func:`country_from_tld`).
+
+        Country is a pure function of a ccTLD (``.co.uk`` → GB), so those need no data — they
+        are computed at runtime, covering every ccTLD domain whether or not we've seen it. The
+        config table carries only what *can't* be derived: gTLD outlets (``nytimes.com`` → US)
+        whose country is editorial knowledge. Unknown gTLD domains stay ``None`` (unannotated).
+        """
         outlet = self.configs.get(domain)
-        return outlet.get(OUTLET_COUNTRY) if outlet is not None else None
+        if outlet is not None and (country := outlet.get(OUTLET_COUNTRY)):
+            return country
+        return country_from_tld(domain)
 
     async def transform(self, msg: IncomingMessage, state: State) -> AsyncIterator[Message | State]:
         row = msg.value[ROW]
