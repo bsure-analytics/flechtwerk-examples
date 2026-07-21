@@ -5,6 +5,10 @@ authors = [
 dependencies = [
     "flechtwerk[mqtt]==0.7.1",
     "httpx>=0.27",
+    # uvloop is the event loop the stages run on (see examples/_runner.py), matching
+    # production; it is POSIX-only, so the marker lets the project still resolve on Windows
+    # (where _runner falls back to stock asyncio).
+    "uvloop>=0.21 ; sys_platform != 'win32'",
 ]
 description = "Complete, runnable examples for the Flechtwerk stream-processing framework, pinned to a released version and wired to a batteries-included stack."
 license = { text = "MIT" }

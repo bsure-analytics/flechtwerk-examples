@@ -63,8 +63,7 @@ as that country's data goes — not just the polled one.
   un-promoted field is queryable as `payload.<field>` (see "The ClickHouse sink"
   below). The attribute list stays short.
   Feed fields keep their wire names; the dashboards alias them at query time
-  (`trimBoth(flight) AS callsign`). (The trick is borrowed from the fret `xovis`
-  transformer.) The one polymorphic field, `alt_baro` (a number **or** the string
+  (`trimBoth(flight) AS callsign`). The one polymorphic field, `alt_baro` (a number **or** the string
   `"ground"`), passes through *faithfully* — coerced to feet only where a stage
   computes with it (`altitude_ft`), so a parked aircraft stays distinguishable from
   one at sea level. That fidelity reaches all the way into ClickHouse: the
