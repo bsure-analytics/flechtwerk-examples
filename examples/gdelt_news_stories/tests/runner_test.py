@@ -36,7 +36,6 @@ from examples.gdelt_news_stories.ingest import (
     MENTIONS_RAW_TOPIC,
     GdeltIngest,
 )
-from examples.gdelt_news_stories.outlets import OUTLETS_TOPIC, OUTLET_LOAD_TOPIC, OutletLoader
 from examples.gdelt_news_stories.stories import STORIES_TOPIC, GdeltStories
 from examples.gdelt_news_stories.schema import FILE_TS, OUTLET_COUNTRY, OUTLET_DOMAIN
 
@@ -128,15 +127,8 @@ async def test_ingest_emits_a_slice_then_the_cursor_gates_a_re_poll() -> None:
         assert len(producer.sent) == before
 
 
-async def test_ingest_verifies_size_and_md5() -> None:
-    # Corrupt the served bytes so they no longer match the pointer's size/MD5 — the slice
-    # must crash ("let it crash"), never commit a corrupt download.
-    def handler(request: httpx.Request) -> httpx.Response:
-        name = request.url.path.rsplit("/", 1)[-1]
-        if name == "lastupdate.txt":
-            return httpx.Response(200, text=(FIXTURES / "lastupdate.txt").read_text())
-        return httpx.Response(200, content=b"corrupted-not-a-zip")
-
+async def _poll_error(handler) -> str | None:
+    """Run one english poll against a stub handler; return the ValueError message, or None."""
     stage = GdeltIngest(client=httpx.AsyncClient(transport=httpx.MockTransport(handler),
                                                  base_url="http://gdelt.test"),
                         base_url="http://gdelt.test")
@@ -145,10 +137,38 @@ async def test_ingest_verifies_size_and_md5() -> None:
     async with stage:
         try:
             await runner.poll_one(runner.entries["english"])
-            raised = False
-        except ValueError:
-            raised = True
-    assert raised
+            return None
+        except ValueError as exc:
+            return str(exc)
+
+
+async def test_ingest_rejects_a_wrong_size() -> None:
+    # A truncated/wrong download fails the size check first (no MD5 computed) — the slice
+    # must crash ("let it crash"), never commit a corrupt download.
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.rsplit("/", 1)[-1]
+        if name == "lastupdate.txt":
+            return httpx.Response(200, text=(FIXTURES / "lastupdate.txt").read_text())
+        return httpx.Response(200, content=b"corrupted-not-a-zip")
+
+    message = await _poll_error(handler)
+    assert message is not None and "bytes" in message  # size branch fired
+
+
+async def test_ingest_rejects_a_wrong_md5_when_size_matches() -> None:
+    # Right length, wrong content (one byte flipped): the size check passes, so the MD5
+    # check must catch it — proving both checks run and the size-then-MD5 order.
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.rsplit("/", 1)[-1]
+        if name == "lastupdate.txt":
+            return httpx.Response(200, text=(FIXTURES / "lastupdate.txt").read_text())
+        data = (FIXTURES / name).read_bytes()
+        if ".gkg." in name:  # same length, different bytes → same size, different MD5
+            data = data[:-1] + bytes([data[-1] ^ 0xFF])
+        return httpx.Response(200, content=data)
+
+    message = await _poll_error(handler)
+    assert message is not None and "md5" in message  # size passed, MD5 branch fired
 
 
 async def test_ingest_skips_an_incomplete_slice() -> None:
@@ -252,45 +272,3 @@ async def test_stories_cluster_dedup_and_annotate_coverage_from_outlets() -> Non
     assert latest["country_count"] == 2               # GB + FR → annotated coverage spread
     assert sorted(latest["countries"]) == ["FR", "GB"]
     assert await mod.runner.tasks[0].store.get("clusters") is not None  # single bucket persisted
-
-
-# --- outlets: the loader publishes the bundled CSV once, gated by its digest ---
-
-def _loader_runner(stage: OutletLoader) -> tuple[ExtractorRunner, FakeKafkaProducer]:
-    producer = FakeKafkaProducer()
-    inner = InMemoryStateStore()
-    runner = ExtractorRunner()
-    runner.changelog_topic = "gdelt-outlets-changelog"
-    runner.config_store = ConfigStore()
-    runner.consumer = FakeKafkaConsumer(
-        [make_record(key="bundled", value=json.dumps({"source": "bundled"}), topic=OUTLET_LOAD_TOPIC)])
-    runner.create_restore_consumer = lambda: FakeKafkaConsumer()
-    runner.create_token_producer = lambda token: producer
-    runner.extractor = stage
-    runner.inner_store = inner
-    runner.observer = Observer()
-    runner.poll_interval = timedelta(0)
-    runner.num_tokens = 1
-    runner.tokens = frozenset({0})
-    store = ChangelogStateStore()
-    store.inner = inner
-    store.producer = FakeKafkaProducer()
-    store.topic = runner.changelog_topic
-    runner.tasks[0] = TokenTask(asyncio.Lock(), producer, store)
-    return runner, producer
-
-
-async def test_outlet_loader_publishes_once_then_the_digest_gates_a_re_poll() -> None:
-    stage = OutletLoader(csv_text="domain,name,country\nbbc.co.uk,BBC,GB\nlemonde.fr,Le Monde,FR\n")
-    runner, producer = _loader_runner(stage)
-    await runner.load_initial_configs()
-
-    await runner.poll_one(runner.entries["bundled"])
-    published = [payload for topic, payload in producer.sent if topic == OUTLETS_TOPIC]
-    assert {payload["key"] for payload in published} == {b"bbc.co.uk", b"lemonde.fr"}  # keyed by domain
-    assert json.loads(published[0]["value"])["country"] in ("GB", "FR")
-    assert await runner.tasks[0].store.get("bundled") is not None  # digest cursor committed
-
-    before = len(producer.sent)
-    await runner.poll_one(runner.entries["bundled"])              # CSV unchanged → no-op
-    assert len(producer.sent) == before

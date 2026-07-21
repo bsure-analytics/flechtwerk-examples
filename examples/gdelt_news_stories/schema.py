@@ -161,14 +161,6 @@ OUTLET_COUNTRY: Final = Attribute("country", STR, optional=True)
 """The outlet's home country (ISO-2 or a short label) — the coverage-spread dimension.
 A leaning/bias column would plug in right here (deliberately not shipped — see the README)."""
 
-# --- Config trigger for the outlet loader (wire key = source id) ---
-
-OUTLET_SOURCE: Final = Attribute("source", STR)
-"""The bundled-CSV source id a ``gdelt-outlet-load`` trigger record names (its key too)."""
-OUTLET_LOADED_DIGEST: Final = Attribute("loaded_digest", STR, optional=True)
-"""The outlet loader's cursor: the content digest of the CSV it last published, so an
-unchanged CSV re-poll is a no-op (freshness-gated reload, like ADS-B's ``CountryLoader``)."""
-
 # --- Event-coverage output (GdeltEventCoverage → gdelt-event-coverage) ---
 
 MENTION_COUNT: Final = Attribute("mention_count", INT)

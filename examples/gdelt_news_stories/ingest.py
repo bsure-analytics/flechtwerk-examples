@@ -181,15 +181,19 @@ class GdeltIngest(Extractor):
         return response
 
     async def _download_verified(self, size: int, md5: str, filename: str) -> bytes:
-        """Fetch one announced file and verify its size + MD5 against the pointer.
+        """Fetch one announced file and verify its size, then its MD5, against the pointer.
 
-        A mismatch is a real fault — raise it ("let it crash"): the slice never commits, so
-        the re-poll re-fetches it. Re-based onto ``base_url`` so a stub/local server serves it.
+        Size first: it is free (no hashing) and catches a truncated or wrong download before
+        we spend anything computing the digest of a file we already know is bad. A mismatch of
+        either is a real fault — raise it ("let it crash"): the slice never commits, so the
+        re-poll re-fetches it. Re-based onto ``base_url`` so a stub/local server serves it.
         """
         raw = (await self._get(filename)).content
+        if len(raw) != size:
+            raise ValueError(f"{filename}: expected {size} bytes, got {len(raw)}")
         digest = hashlib.md5(raw).hexdigest()
-        if len(raw) != size or digest.lower() != md5.lower():
-            raise ValueError(f"{filename}: expected {size}B/{md5}, got {len(raw)}B/{digest}")
+        if digest.lower() != md5.lower():
+            raise ValueError(f"{filename}: expected md5 {md5}, got {digest}")
         return raw
 
     async def poll(self, config: Config, state: State) -> AsyncIterator[Message | State]:

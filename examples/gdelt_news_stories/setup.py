@@ -3,10 +3,11 @@
     uv run poe setup-gdelt
 
 Creates the config topics and the pipeline topics, seeds the feed configs (which feeds
-ingest polls) and the outlet-loader trigger, and applies the ClickHouse schema. Nothing
-about the *data* is seeded — the feeds are the live GDELT firehose; the outlets come from
-the bundled CSV via ``OutletLoader``. Each stage existence-checks its topics at startup and
-fails fast if any is missing, so this is the ops step the framework assumes is done up front.
+ingest polls) and the bundled outlet table, and applies the ClickHouse schema. Nothing about
+the *pipeline data* is seeded — the feeds are the live GDELT firehose; only the static outlet
+lookup (``outlets.csv``) is seeded onto the ``gdelt-outlets`` config topic here, since it
+needs no polling stage. Each stage existence-checks its topics at startup and fails fast if
+any is missing, so this is the ops step the framework assumes is done up front.
 
 ``INCLUDE_TRANSLATION`` (default on) decides whether the machine-translated non-English feed
 is polled too — European coverage is a stated motivation; it roughly doubles volume, still
@@ -25,7 +26,7 @@ from examples._setup import quiet_fresh_topic_produce_race
 
 from .coverage import COVERAGE_TOPIC
 from .ingest import EVENTS_RAW_TOPIC, FEEDS_CONFIG_TOPIC, GKG_RAW_TOPIC, MENTIONS_RAW_TOPIC
-from .outlets import OUTLET_LOAD_TOPIC, OUTLETS_TOPIC
+from .outlets import OUTLETS_CSV, OUTLETS_TOPIC, outlet_messages
 from .stories import STORIES_TOPIC
 
 BOOTSTRAP_SERVERS = "localhost:9092"
@@ -54,8 +55,7 @@ async def create_topics() -> None:
         existing = set(await admin.list_topics())
         specs = [
             (FEEDS_CONFIG_TOPIC, 8, {"cleanup.policy": "compact"}),   # feeds to poll (seeded here)
-            (OUTLET_LOAD_TOPIC, 1, {"cleanup.policy": "compact"}),    # outlet-loader trigger (seeded here)
-            (OUTLETS_TOPIC, 8, {"cleanup.policy": "compact"}),        # outlet table (loader-published)
+            (OUTLETS_TOPIC, 8, {"cleanup.policy": "compact"}),        # outlet table (seeded here)
             (EVENTS_RAW_TOPIC, 8, {}),
             (MENTIONS_RAW_TOPIC, 8, {}),                             # co-partitioned with events-raw
             (GKG_RAW_TOPIC, 1, {}),                                 # single-partition clustering input
@@ -74,8 +74,14 @@ async def create_topics() -> None:
 
 
 async def seed_configs() -> None:
-    """Seed the feeds to poll and the outlet-loader trigger (keyed on their compacted topics)."""
+    """Seed the feeds to poll and the bundled outlet table (keyed on their compacted topics).
+
+    The outlet table is static bundled data, so it is produced straight to ``gdelt-outlets``
+    here (reusing :func:`.outlets.outlet_messages`) rather than via a polling stage; keyed by
+    domain on a compacted topic, so re-running setup idempotently overwrites each entry.
+    """
     feeds = ["english"] + (["translation"] if INCLUDE_TRANSLATION else [])
+    outlets = list(outlet_messages(OUTLETS_CSV.read_text()))
     producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP_SERVERS)
     await producer.start()
     try:
@@ -83,11 +89,12 @@ async def seed_configs() -> None:
             for feed in feeds:
                 await producer.send_and_wait(FEEDS_CONFIG_TOPIC, key=feed.encode(),
                                              value=json.dumps({"feed": feed}).encode())
-            await producer.send_and_wait(OUTLET_LOAD_TOPIC, key=b"bundled",
-                                         value=json.dumps({"source": "bundled"}).encode())
+            for message in outlets:
+                await producer.send_and_wait(OUTLETS_TOPIC, key=message.key.encode(),
+                                             value=json.dumps(message.value.raw).encode())
     finally:
         await producer.stop()
-    print(f"Seeded feeds {feeds} and the outlet-loader trigger")
+    print(f"Seeded feeds {feeds} and {len(outlets)} outlets")
 
 
 async def apply_clickhouse_schema(base_url: str = CLICKHOUSE_URL, *, database: str = "flechtwerk",

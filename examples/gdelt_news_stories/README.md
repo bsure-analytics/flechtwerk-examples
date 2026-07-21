@@ -12,14 +12,14 @@ globally a story is carried), sunk to ClickHouse and shown in Grafana.
 
 ```mermaid
 flowchart LR
-    PTR{{"lastupdate.txt<br/>(+ -translation)"}}:::ext --> ING["GdeltIngest (Extractor)<br/>verify md5+size, unzip, emit rows<br/>State = per-feed cursor (file ts)"]:::process
+    PTR{{"lastupdate.txt<br/>(+ -translation)"}}:::ext --> ING["GdeltIngest (Extractor)<br/>verify size+md5, unzip, emit rows<br/>State = per-feed cursor (file ts)"]:::process
     ING --> EVR(["gdelt-events-raw<br/>(by GlobalEventID)"]):::topic
     ING --> MNR(["gdelt-mentions-raw<br/>(by GlobalEventID)"]):::topic
     ING --> GKR(["gdelt-gkg-raw<br/>(1 partition, by URL)"]):::topic
     EVR --> COV["GdeltEventCoverage<br/>(Transformer: co-partitioned join)"]:::process
     MNR --> COV
     GKR --> STO["GdeltStories<br/>(Transformer: online clustering,<br/>one-bucket State = clusters)"]:::process
-    OUTL["OutletLoader (Extractor)<br/>bundled CSV"]:::process --> OUT(["gdelt-outlets<br/>(config: domain → name/country)"]):::topic
+    SEED{{"setup.py<br/>bundled outlets.csv"}}:::ext --> OUT(["gdelt-outlets<br/>(config: domain → name/country)"]):::topic
     OUT -->|"coverage spread"| STO
     COV --> COVT(["gdelt-event-coverage"]):::topic
     STO --> STOT(["gdelt-stories"]):::topic
@@ -50,10 +50,11 @@ Four primitives the other examples don't:
 3. **Online clustering in keyed state.** `GdeltStories` groups GKG articles into stories by
    thresholded feature-set similarity (overlap coefficient over persons ∪ orgs ∪ top themes),
    with URL dedup and TTL eviction — all in one keyed-state bucket.
-4. **Config-topic enrichment (GlobalKTable-style).** `OutletLoader` publishes a bundled
-   outlet table to the compacted `gdelt-outlets` config topic; `GdeltStories` joins it as a
-   lookup to annotate each story's **coverage spread** (how many distinct countries' outlets
-   carry it).
+4. **Config-topic enrichment (GlobalKTable-style).** A bundled outlet table (`outlets.csv`)
+   is seeded onto the compacted `gdelt-outlets` config topic by `setup.py` — static data, so
+   no runtime stage; `GdeltStories` joins it as a lookup to annotate each story's **coverage
+   spread** (how many distinct countries' outlets carry it). Any producer can update
+   `gdelt-outlets` live (Kafbat included) and the change lands on the next batch.
 
 Three lessons worth naming explicitly:
 
@@ -97,14 +98,13 @@ noisier, so enabling it is where you'd move to a sharded clustering key. Codeboo
 With the [stack](../../README.md#the-stack) up:
 
 ```bash
-uv run poe gdelt        # setup (topics + feed/outlet configs + schema) then run all five stages
+uv run poe gdelt        # setup (topics + feed configs + bundled outlets + schema) then run all four stages
 ```
 
 or step by step:
 
 ```bash
-uv run poe setup-gdelt          # topics + feed/outlet configs + ClickHouse schema
-uv run poe run-gdelt-outlets    # publish the bundled outlet table -> gdelt-outlets
+uv run poe setup-gdelt          # topics + feed configs + bundled outlets + ClickHouse schema
 uv run poe run-gdelt-ingest     # poll GDELT -> gdelt-{events,mentions,gkg}-raw
 uv run poe run-gdelt-coverage   # Events x Mentions join -> gdelt-event-coverage
 uv run poe run-gdelt-stories    # cluster GKG -> gdelt-stories

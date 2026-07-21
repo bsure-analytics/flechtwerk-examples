@@ -91,7 +91,7 @@ Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
 boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
-GDELT sink; the chaos harness and the GDELT outlet loader run metrics-off);
+GDELT sink; the chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
