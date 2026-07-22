@@ -3,7 +3,7 @@ authors = [
     { name = "Christian Schlichtherle" },
 ]
 dependencies = [
-    "flechtwerk[mqtt]==0.7.1",
+    "flechtwerk[mqtt]==0.7.3",
     "httpx>=0.27",
     # uvloop is the event loop the stages run on (see examples/_runner.py), matching
     # production; it is POSIX-only, so the marker lets the project still resolve on Windows
