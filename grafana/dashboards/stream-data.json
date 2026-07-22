@@ -7,6 +7,7 @@
   "version": 1,
   "refresh": "5s",
   "time": { "from": "now-15m", "to": "now" },
+  "timepicker": { "hidden": true },
   "panels": [
     {
       "id": 1,

@@ -26,7 +26,7 @@
           "editorType": "sql",
           "queryType": "timeseries",
           "format": 2,
-          "rawSql": "SELECT at AS time, batch, gravity FROM flechtwerk.fermentation_readings ORDER BY time"
+          "rawSql": "SELECT at AS time, batch, gravity FROM flechtwerk.fermentation_readings WHERE $__timeFilter(at) ORDER BY time"
         }
       ]
     },
@@ -45,7 +45,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT at, batch, kind, round(gravity, 3) AS gravity FROM flechtwerk.fermentation_alerts ORDER BY at DESC"
+          "rawSql": "SELECT at, batch, kind, round(gravity, 3) AS gravity FROM flechtwerk.fermentation_alerts WHERE $__timeFilter(at) ORDER BY at DESC"
         }
       ]
     }
