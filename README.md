@@ -29,8 +29,10 @@ published package, exercised exactly the way a consumer would use it.
 </p>
 <p align="center">
   <a href="examples/gtfs_german_rail_delays"><img src="assets/gtfs-grafana.png" width="49%" alt="GTFS German Rail Delays — the live Grafana dashboard (delay-coloured map of ICE/IC trains, punctuality, most-delayed trains, network-delay timeseries)"></a>
+  &nbsp;
+  <a href="examples/smard_german_electricity_market"><img src="assets/smard-grafana.png" width="49%" alt="SMARD German Electricity Market — the live Grafana dashboard (generation mix by source, day-ahead price into tomorrow, renewables share and CO₂ intensity, corrections feed of revised values)"></a>
 </p>
-<p align="center"><em>Three of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, and <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>.</em></p>
+<p align="center"><em>Four of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, and <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>.</em></p>
 
 ## What's Inside
 
@@ -45,6 +47,7 @@ scenario under `examples/`:
 | 4 | [`fermentation_monitor`](examples/fermentation_monitor) | the `MqttExtractor` bridge (ACK only after Kafka) + a stateful gravity monitor | `fermentation` |
 | 5 | [`gdelt_news_stories`](examples/gdelt_news_stories) | batch-file firehose ingestion (a resume-cursor `Extractor` over the GDELT 15-min feed), a co-partitioned Events⋈Mentions join with out-of-order buffering, online clustering of articles into stories in keyed state, and config-topic (GlobalKTable-style) outlet enrichment | `gdelt` |
 | 6 | [`gtfs_german_rail_delays`](examples/gtfs_german_rail_delays) | a **binary (protobuf) source decoded at the edge** (Germany's GTFS-Realtime feed), a stream⋈**static-dimension** join (live delays ⋈ the schedule, co-partitioned by `trip_id` via a compacted profile topic), and a self-healing snapshot source — a live German long-distance rail **delay** monitor | `gtfs` |
+| 7 | [`smard_german_electricity_market`](examples/smard_german_electricity_market) | **late data / revisions**: a resume-cursor `Extractor` that diffs each snapshot against a 48 h window to re-emit *corrections*, **stream-time punctuation** (the poller emits `settled` markers the transformer turns into a preliminary→final lifecycle + state tombstone), and a co-partitioned join whose key is **time** — Germany's live electricity generation mix, load, and day-ahead prices from Bundesnetzagentur SMARD.de | `smard` |
 
 Each example is self-contained under its own directory with its own README.
 
@@ -89,16 +92,18 @@ batch sizes, state restores, config-store and ownership gauges), **Stream Data**
 Tracker** (a live map + enriched table), **ADS-B Aviation Events**
 (emergencies, rapid descents, going-dark, near-misses), **Fermentation
 Monitor** (gravity curves + alerts), **GDELT News Stories** (breaking-news
-velocity, top stories, a tone-coloured world map, coverage spread), and
+velocity, top stories, a tone-coloured world map, coverage spread),
 **GTFS German Rail Delays** (a delay-coloured map of ICE/IC trains, network
-punctuality, most-delayed trains, a network-delay timeseries).
+punctuality, most-delayed trains, a network-delay timeseries), and **SMARD German
+Electricity Market** (the generation mix by source, day-ahead price into tomorrow,
+renewables share and CO₂ intensity, and a live corrections feed of revised values).
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
 boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
-GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader; the
-chaos harness runs metrics-off);
+GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader, `9115`
+SMARD ingest + `9116` SMARD mix; the chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 

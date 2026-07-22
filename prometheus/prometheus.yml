@@ -54,3 +54,9 @@ scrape_configs:
         labels: { example: gtfs_german_rail_delays }
       - targets: ["host.docker.internal:9114"]
         labels: { example: gtfs_german_rail_delays }
+      # smard_german_electricity_market runs two host stages under one example label:
+      # ingest (9115) and the cross-series mix join (9116).
+      - targets: ["host.docker.internal:9115"]
+        labels: { example: smard_german_electricity_market }
+      - targets: ["host.docker.internal:9116"]
+        labels: { example: smard_german_electricity_market }

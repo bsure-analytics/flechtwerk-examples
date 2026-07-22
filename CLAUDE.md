@@ -31,8 +31,8 @@ uv run poe setup-<example>  # create topics / seed config / apply schema
 uv run poe run-<example>    # run one example against the shared stack
 uv run poe <example>        # quickstart: setup + run in one command, for the
                             # self-contained examples (adsb, chaos, fermentation,
-                            # gdelt, gtfs); clickhouse_sink has none — it consumes
-                            # example 1's output
+                            # gdelt, gtfs, smard); clickhouse_sink has none — it
+                            # consumes example 1's output
 ```
 
 ## The shared stack
@@ -117,7 +117,7 @@ names a leader before the broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `fermentation`, `chaos`; the sink's ops key is `sink`) — and one
+`gtfs`, `smard`, `fermentation`, `chaos`; the sink's ops key is `sink`) — and one
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …), and
 every other name derives from those two: topics and consumer groups are
 `<key>-*`; ClickHouse tables are `<key>_*`, prefixed by the pipeline the data
@@ -132,7 +132,8 @@ Exactly-Once Proof`). An example's host metrics port follows the allocation in
 `prometheus/prometheus.yml` (`9101` adsb ingest + `9105` adsb enrich + `9106` adsb
 conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
 `9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
-gtfs ingest + `9113` gtfs delays + `9114` gtfs loader; the chaos harness runs
+gtfs ingest + `9113` gtfs delays + `9114` gtfs loader, `9115` smard ingest + `9116`
+smard mix; the chaos harness runs
 metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
 data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
 companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host

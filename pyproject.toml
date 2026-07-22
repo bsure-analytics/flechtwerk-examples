@@ -96,6 +96,9 @@ setup-gtfs = { cmd = "python -m examples.gtfs_german_rail_delays.setup", help = 
 run-gtfs-loader = { cmd = "python -m examples.gtfs_german_rail_delays loader", help = "Run GTFS stage 0: load the fv static feed -> gtfs-trip-profiles (compacted dimension)" }
 run-gtfs-ingest = { cmd = "python -m examples.gtfs_german_rail_delays ingest", help = "Run GTFS stage 1: poll the RT protobuf feed -> gtfs-trip-updates" }
 run-gtfs-delays = { cmd = "python -m examples.gtfs_german_rail_delays delays", help = "Run GTFS stage 2: join updates x profiles -> gtfs-train-delays" }
+setup-smard = { cmd = "python -m examples.smard_german_electricity_market.setup", help = "Create the SMARD topics, seed the series configs, apply the ClickHouse schema" }
+run-smard-ingest = { cmd = "python -m examples.smard_german_electricity_market ingest", help = "Run SMARD stage 1: poll each series, diff against the revision window -> smard-observations" }
+run-smard-mix = { cmd = "python -m examples.smard_german_electricity_market mix", help = "Run SMARD stage 2: join series by interval -> smard-mix (preliminary -> final on settle)" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -191,6 +194,26 @@ wait
 [tool.poe.tasks.gtfs]
 help = "Quickstart: set up GTFS topics/configs/schema, then run all three stages (restart-on-crash)"
 sequence = ["setup-gtfs", "run-gtfs"]
+
+[tool.poe.tasks.run-smard]
+help = "Run both SMARD stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# The same poor-man's supervisor as run-adsb/run-gdelt/run-gtfs (see run-adsb's notes on the
+# process-group / Ctrl-C handling): plain `python -m` children in this shell's process group,
+# and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned — with
+# `trap "" TERM` so this shell survives its own `kill 0` and exits 0 for poe. Each stage runs
+# in its own restart loop; state restores from the changelog after a crash.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-smard] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in ingest mix; do
+  supervise python -m examples.smard_german_electricity_market $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.smard]
+help = "Quickstart: set up SMARD topics/configs/schema, then run both stages (restart-on-crash)"
+sequence = ["setup-smard", "run-smard"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"
