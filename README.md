@@ -27,7 +27,10 @@ published package, exercised exactly the way a consumer would use it.
   &nbsp;
   <a href="examples/gdelt_news_stories"><img src="assets/gdelt-grafana.png" width="49%" alt="GDELT News Stories — the live Grafana dashboard (breaking-news velocity, tone map, top stories)"></a>
 </p>
-<p align="center"><em>Two of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a> and <a href="examples/gdelt_news_stories">GDELT News Stories</a>.</em></p>
+<p align="center">
+  <a href="examples/gtfs_delay_monitor"><img src="assets/gtfs-grafana.png" width="49%" alt="German Rail Delays — the live Grafana dashboard (delay-coloured map of ICE/IC trains, punctuality, most-delayed trains, network-delay timeseries)"></a>
+</p>
+<p align="center"><em>Three of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, and <a href="examples/gtfs_delay_monitor">German Rail Delays</a>.</em></p>
 
 ## What's Inside
 
@@ -41,6 +44,7 @@ scenario under `examples/`:
 | 3 | [`chaos_harness`](examples/chaos_harness) | an executable exactly-once proof — SIGKILL a stage mid-batch, assert zero dupes/gaps | `chaos` |
 | 4 | [`fermentation_monitor`](examples/fermentation_monitor) | the `MqttExtractor` bridge (ACK only after Kafka) + a stateful gravity monitor | `fermentation` |
 | 5 | [`gdelt_news_stories`](examples/gdelt_news_stories) | batch-file firehose ingestion (a resume-cursor `Extractor` over the GDELT 15-min feed), a co-partitioned Events⋈Mentions join with out-of-order buffering, online clustering of articles into stories in keyed state, and config-topic (GlobalKTable-style) outlet enrichment | `gdelt` |
+| 6 | [`gtfs_delay_monitor`](examples/gtfs_delay_monitor) | a **binary (protobuf) source decoded at the edge** (Germany's GTFS-Realtime feed), a stream⋈**static-dimension** join (live delays ⋈ the schedule, co-partitioned by `trip_id` via a compacted profile topic), and a self-healing snapshot source — a live German long-distance rail **delay** monitor | `trains` |
 
 Each example is self-contained under its own directory with its own README.
 
@@ -84,14 +88,17 @@ batch sizes, state restores, config-store and ownership gauges), **Stream Data**
 (a ClickHouse datasource smoke test), and per-example dashboards — **ADS-B Flight
 Tracker** (a live map + enriched table), **ADS-B Live Aviation Events**
 (emergencies, rapid descents, going-dark, near-misses), **Fermentation
-Monitor** (gravity curves + alerts), and **GDELT News Stories** (breaking-news
-velocity, top stories, a tone-coloured world map, coverage spread).
+Monitor** (gravity curves + alerts), **GDELT News Stories** (breaking-news
+velocity, top stories, a tone-coloured world map, coverage spread), and
+**German Rail Delays** (a delay-coloured map of ICE/IC trains, network
+punctuality, most-delayed trains, a network-delay timeseries).
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
 boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
-GDELT sink; the chaos harness runs metrics-off);
+GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader; the
+chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 

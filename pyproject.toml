@@ -4,7 +4,14 @@ authors = [
 ]
 dependencies = [
     "flechtwerk[mqtt]==0.7.3",
+    # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_delay_monitor
+    # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
+    # JSON stays the only Kafka wire codec. Brings `protobuf` transitively.
+    "gtfs-realtime-bindings>=1.0",
     "httpx>=0.27",
+    # The delay stage anchors GTFS local clock-times to Europe/Berlin (DST-correct); ship
+    # the IANA tz database so zoneinfo resolves it on minimal Linux/CI images too.
+    "tzdata>=2024.1",
     # uvloop is the event loop the stages run on (see examples/_runner.py), matching
     # production; it is POSIX-only, so the marker lets the project still resolve on Windows
     # (where _runner falls back to stock asyncio).
@@ -85,6 +92,10 @@ run-gdelt-ingest = { cmd = "python -m examples.gdelt_news_stories ingest", help 
 run-gdelt-coverage = { cmd = "python -m examples.gdelt_news_stories coverage", help = "Run GDELT stage 2a: the Events x Mentions co-partitioned join -> gdelt-event-coverage" }
 run-gdelt-stories = { cmd = "python -m examples.gdelt_news_stories stories", help = "Run GDELT stage 2b: online clustering of GKG articles -> gdelt-stories" }
 run-gdelt-sink = { cmd = "python -m examples.gdelt_news_stories sink", help = "Run GDELT stage 3: sink stories + coverage into ClickHouse (idempotent)" }
+setup-trains = { cmd = "python -m examples.gtfs_delay_monitor.setup", help = "Create the GTFS delay-monitor topics, seed the feed configs, apply the ClickHouse schema" }
+run-trains-loader = { cmd = "python -m examples.gtfs_delay_monitor loader", help = "Run GTFS stage 0: load the fv static feed -> gtfs-trip-profiles (compacted dimension)" }
+run-trains-ingest = { cmd = "python -m examples.gtfs_delay_monitor ingest", help = "Run GTFS stage 1: poll the RT protobuf feed -> gtfs-trip-updates" }
+run-trains-delays = { cmd = "python -m examples.gtfs_delay_monitor delays", help = "Run GTFS stage 2: join updates x profiles -> gtfs-train-delays" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -160,6 +171,26 @@ wait
 [tool.poe.tasks.gdelt]
 help = "Quickstart: set up GDELT topics/configs/schema, then run all four stages (restart-on-crash)"
 sequence = ["setup-gdelt", "run-gdelt"]
+
+[tool.poe.tasks.run-trains]
+help = "Run all three GTFS delay-monitor stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# The same poor-man's supervisor as run-adsb/run-gdelt (see run-adsb's notes on the
+# process-group / Ctrl-C handling): plain `python -m` children in this shell's process
+# group, and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned —
+# with `trap "" TERM` so this shell survives its own `kill 0` and exits 0 for poe. Each
+# stage runs in its own restart loop; state restores from the changelog after a crash.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-trains] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in loader ingest delays; do
+  supervise python -m examples.gtfs_delay_monitor $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.trains]
+help = "Quickstart: set up GTFS delay-monitor topics/configs/schema, then run all three stages (restart-on-crash)"
+sequence = ["setup-trains", "run-trains"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"

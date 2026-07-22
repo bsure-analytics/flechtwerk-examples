@@ -46,3 +46,11 @@ scrape_configs:
         labels: { example: gdelt_news_stories }
       - targets: ["host.docker.internal:9111"]
         labels: { example: gdelt_news_stories }
+      # gtfs_delay_monitor runs three host stages under one example label:
+      # ingest (9112), the delay join (9113), and the static loader (9114).
+      - targets: ["host.docker.internal:9112"]
+        labels: { example: gtfs_delay_monitor }
+      - targets: ["host.docker.internal:9113"]
+        labels: { example: gtfs_delay_monitor }
+      - targets: ["host.docker.internal:9114"]
+        labels: { example: gtfs_delay_monitor }

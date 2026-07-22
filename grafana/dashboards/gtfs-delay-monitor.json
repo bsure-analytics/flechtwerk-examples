@@ -1,0 +1,169 @@
+{
+  "uid": "flechtwerk-gtfs-delays",
+  "title": "Flechtwerk — German Rail Delays",
+  "tags": ["flechtwerk", "gtfs"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": { "hidden": true },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Trains running",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT count() FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Punctual (< 6 min)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 60 }, { "color": "green", "value": 80 } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT round(100 * countIf(delay_s < 360) / count()) FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Mean delay",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 360 }, { "color": "red", "value": 1800 } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT round(avg(delay_s)) FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Worst delay now",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 360 }, { "color": "red", "value": 1800 } ] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT max(delay_s) FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "geomap",
+      "title": "Where the trains are (at their next stop, delay-coloured)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 16, "w": 14, "x": 0, "y": 4 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": {}, "color": { "mode": "continuous-GrYlRd" } },
+        "overrides": []
+      },
+      "options": {
+        "basemap": { "type": "default", "name": "Basemap" },
+        "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": true },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Trains",
+            "location": { "mode": "auto" },
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": { "fixed": 6 },
+                "color": { "field": "delay" },
+                "opacity": 0.7,
+                "symbol": { "fixed": "img/icons/marker/circle.svg" }
+              }
+            }
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "view": { "id": "coords", "lat": 51.1, "lon": 10.4, "zoom": 6 }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT line, next_stop AS station, destination, delay_s AS delay, lat AS latitude, lon AS longitude FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE AND lat != 0"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Mean delay by line",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 16, "w": 10, "x": 14, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "continuous-GrYlRd" } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "showValue": "auto", "xTickLabelRotation": 0, "legend": { "showLegend": false }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT line, round(avg(delay_s)) AS mean_delay FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE GROUP BY line ORDER BY mean_delay DESC LIMIT 15"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Most delayed trains",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 12, "w": 14, "x": 0, "y": 20 },
+      "fieldConfig": { "defaults": { "custom": { "align": "left" } }, "overrides": [ { "matcher": { "id": "byName", "options": "delay" }, "properties": [ { "id": "unit", "value": "s" } ] } ] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "delay", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "table", "format": 1,
+          "rawSql": "SELECT line, destination, next_stop AS approaching, status, delay_s AS delay FROM flechtwerk.gtfs_train_delays FINAL WHERE feed_ts > now() - INTERVAL 5 MINUTE ORDER BY delay_s DESC LIMIT 50"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Network mean delay over time (last hour)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 12, "w": 10, "x": 14, "y": 20 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql", "queryType": "timeseries", "format": 2,
+          "rawSql": "SELECT toStartOfInterval(feed_ts, INTERVAL 1 MINUTE) AS time, round(avg(delay_s)) AS mean_delay_s FROM flechtwerk.gtfs_delay_history WHERE feed_ts > now() - INTERVAL 1 HOUR GROUP BY time ORDER BY time"
+        }
+      ]
+    }
+  ]
+}

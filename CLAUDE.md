@@ -120,8 +120,9 @@ a hyphenated name (e.g. `adsb-flight-tracker.json`); its poe targets are
 `setup-<name>` / `run-<name>`; its host metrics port follows the allocation in
 `prometheus/prometheus.yml` (`9101` adsb ingest + `9105` adsb enrich + `9106` adsb
 conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
-`9104` fermentation bridge; the chaos harness runs metrics-off — its rapid SIGKILL
-restarts would race to rebind a scrape port). The ADS-B example is a three-stage
+`9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
+gtfs ingest + `9113` gtfs delays + `9114` gtfs loader; the chaos harness runs
+metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
 data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
 companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
 processes. Reverse geocoding is **staged and traffic-driven** over a stack of ClickHouse
