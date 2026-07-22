@@ -126,7 +126,7 @@
       "title": "Fastest now",
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "velocityknots", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "velocityknot", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "text", "value": null } ] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value" },
       "targets": [
         {
@@ -135,7 +135,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT round(max(gs)) AS fastest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0"
+          "rawSql": "SELECT round(max(gs)) AS fastest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND gs < 1000"
         }
       ]
     },
@@ -154,7 +154,7 @@
           "editorType": "sql",
           "queryType": "table",
           "format": 1,
-          "rawSql": "SELECT max(toInt32OrNull(toString(alt_baro))) AS highest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0"
+          "rawSql": "SELECT max(toInt32OrNull(toString(alt_baro))) AS highest FROM flechtwerk.adsb_aircraft FINAL WHERE is_deleted = 0 AND toInt32OrNull(toString(alt_baro)) < 60000"
         }
       ]
     },
