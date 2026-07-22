@@ -1,4 +1,4 @@
-"""GTFS delay monitor — live German long-distance rail delays.
+"""GTFS German rail delays — a live German long-distance rail delay monitor.
 
 A three-stage pipeline over Germany's free open transit data (gtfs.de / DELFI):
 

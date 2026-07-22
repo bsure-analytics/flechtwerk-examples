@@ -148,10 +148,10 @@ FROM flechtwerk.adsb_events_queue;
 --
 -- This is the reverse geocoder itself (no Nominatim, no PostGIS). It is STAGED, driven by
 -- where the aircraft are (boundaries.py):
---   * world_boundaries_dict -- a global ADM0 map (all countries); dictGet(point) -> which
+--   * adsb_world_boundaries_dict -- a global ADM0 map (all countries); dictGet(point) -> which
 --     country the aircraft is over. Loaded once at startup.
---   * region_adm{1..5}_dict -- per-admin-level fine areas, all sourced from one
---     region_boundaries table filtered by level. dictGet(point) at each level -> that
+--   * adsb_region_adm{1..5}_dict -- per-admin-level fine areas, all sourced from one
+--     adsb_region_boundaries table filtered by level. dictGet(point) at each level -> that
 --     level's admin area; enrich stacks the hits into "Le Bourget; Marne; Grand Est".
 --     Filled on demand: when enrich sees traffic over a country, it requests it and the
 --     loader downloads every admin level that country publishes.
@@ -162,7 +162,7 @@ FROM flechtwerk.adsb_events_queue;
 -- reloads explicitly after each load.
 
 -- World map: one MultiPolygon per country (ADM0), with its name + ISO-3 and a load time.
-CREATE TABLE IF NOT EXISTS flechtwerk.world_boundaries
+CREATE TABLE IF NOT EXISTS flechtwerk.adsb_world_boundaries
 (
     geometry Array(Array(Array(Tuple(Float64, Float64)))),
     country String,
@@ -172,14 +172,14 @@ CREATE TABLE IF NOT EXISTS flechtwerk.world_boundaries
 ENGINE = MergeTree
 ORDER BY iso3;
 
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.world_boundaries_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_world_boundaries_dict
 (
     geometry Array(Array(Array(Tuple(Float64, Float64)))),
     country String,
     iso3 String
 )
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(TABLE 'world_boundaries' DB 'flechtwerk'))
+SOURCE(CLICKHOUSE(TABLE 'adsb_world_boundaries' DB 'flechtwerk'))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 
@@ -187,7 +187,7 @@ LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 -- so the loader can replace/expire a country's rows) and its admin level. The loader loads
 -- EVERY level a country publishes (ADM1…ADM5, whichever geoBoundaries has), so
 -- `SELECT iso3, admin_level, count() ... GROUP BY iso3, admin_level` shows the coverage.
-CREATE TABLE IF NOT EXISTS flechtwerk.region_boundaries
+CREATE TABLE IF NOT EXISTS flechtwerk.adsb_region_boundaries
 (
     geometry Array(Array(Array(Tuple(Float64, Float64)))),
     name String,
@@ -198,43 +198,43 @@ CREATE TABLE IF NOT EXISTS flechtwerk.region_boundaries
 ENGINE = MergeTree
 ORDER BY (iso3, name);
 
--- One dictionary per admin level, each a POLYGON view over the single region_boundaries
+-- One dictionary per admin level, each a POLYGON view over the single adsb_region_boundaries
 -- table filtered by admin_level. The enrich stage dictGets ALL of them for a point and
 -- concatenates the hits (finest -> coarsest) into a hierarchical label like
 -- "Le Bourget; Marne; Grand Est". Separate dicts are required because a polygon dictionary
 -- returns only the finest (minimum-area) containing polygon -- so one dict can't yield a hit
 -- at every level. The loader reloads only the levels a country actually publishes.
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.region_adm1_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_region_adm1_dict
 (geometry Array(Array(Array(Tuple(Float64, Float64)))), name String)
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''ADM1'''))
+SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''ADM1'''))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.region_adm2_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_region_adm2_dict
 (geometry Array(Array(Array(Tuple(Float64, Float64)))), name String)
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''ADM2'''))
+SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''ADM2'''))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.region_adm3_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_region_adm3_dict
 (geometry Array(Array(Array(Tuple(Float64, Float64)))), name String)
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''ADM3'''))
+SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''ADM3'''))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.region_adm4_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_region_adm4_dict
 (geometry Array(Array(Array(Tuple(Float64, Float64)))), name String)
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''ADM4'''))
+SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''ADM4'''))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));
 
-CREATE DICTIONARY IF NOT EXISTS flechtwerk.region_adm5_dict
+CREATE DICTIONARY IF NOT EXISTS flechtwerk.adsb_region_adm5_dict
 (geometry Array(Array(Array(Tuple(Float64, Float64)))), name String)
 PRIMARY KEY geometry
-SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''ADM5'''))
+SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''ADM5'''))
 LIFETIME(0)
 LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1));

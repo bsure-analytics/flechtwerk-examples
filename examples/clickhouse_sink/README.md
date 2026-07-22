@@ -1,4 +1,4 @@
-# ClickHouse Sink Stage
+# ClickHouse Sink
 
 A **sink transformer**: it consumes `adsb-aircraft` (example 1's output) and
 writes each position into ClickHouse. It is the honest-semantics counterpart to

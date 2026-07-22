@@ -29,10 +29,10 @@ from flechtwerk.state import ChangelogStateStore
 from flechtwerk.testing import FakeKafkaConsumer, FakeKafkaProducer, InMemoryStateStore, make_record
 from flechtwerk.transformer import Task
 
-from examples.gtfs_delay_monitor.attributes import FEED_TS, STATIC_VERSION, STATUS, TRIP_ID
-from examples.gtfs_delay_monitor.delays import DELAYS_TOPIC, build_delay_state, classify, delays
-from examples.gtfs_delay_monitor.ingest import UPDATES_TOPIC, GtfsRtIngest, decode_feed
-from examples.gtfs_delay_monitor.loader import PROFILES_TOPIC, StaticGtfsLoader, build_profiles
+from examples.gtfs_german_rail_delays.attributes import FEED_TS, STATIC_VERSION, STATUS, TRIP_ID
+from examples.gtfs_german_rail_delays.delays import DELAYS_TOPIC, build_delay_state, classify, delays
+from examples.gtfs_german_rail_delays.ingest import UPDATES_TOPIC, GtfsRtIngest, decode_feed
+from examples.gtfs_german_rail_delays.loader import PROFILES_TOPIC, StaticGtfsLoader, build_profiles
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FV_ZIP = (FIXTURES / "fv_sample.zip").read_bytes()

@@ -220,4 +220,4 @@ async def delays(msg: IncomingMessage, state: State) -> AsyncIterator[Message | 
 
 
 stage = delays
-"""The stage the dispatcher runs (``python -m examples.gtfs_delay_monitor delays``)."""
+"""The stage the dispatcher runs (``python -m examples.gtfs_german_rail_delays delays``)."""

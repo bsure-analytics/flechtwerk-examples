@@ -9,7 +9,7 @@ from pathlib import Path
 
 from datetime import datetime, timedelta, timezone
 
-from examples.gtfs_delay_monitor.attributes import (
+from examples.gtfs_german_rail_delays.attributes import (
     DELAY_S,
     DESTINATION,
     FEED_TS,
@@ -32,15 +32,15 @@ from examples.gtfs_delay_monitor.attributes import (
     TRIP,
     TRIP_ID,
 )
-from examples.gtfs_delay_monitor.delays import (
+from examples.gtfs_german_rail_delays.delays import (
     build_delay_state,
     classify,
     effective_delays,
     locate,
     service_time_to_utc,
 )
-from examples.gtfs_delay_monitor.ingest import decode_feed
-from examples.gtfs_delay_monitor.loader import build_profiles, parse_gtfs_time
+from examples.gtfs_german_rail_delays.ingest import decode_feed
+from examples.gtfs_german_rail_delays.loader import build_profiles, parse_gtfs_time
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FV_ZIP = (FIXTURES / "fv_sample.zip").read_bytes()

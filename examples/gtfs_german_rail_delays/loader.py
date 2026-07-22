@@ -193,4 +193,4 @@ class StaticGtfsLoader(Extractor):
 
 
 stage = StaticGtfsLoader()
-"""The stage the dispatcher runs (``python -m examples.gtfs_delay_monitor loader``)."""
+"""The stage the dispatcher runs (``python -m examples.gtfs_german_rail_delays loader``)."""

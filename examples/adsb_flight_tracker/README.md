@@ -157,7 +157,7 @@ Then watch it live at <http://localhost:3000>:
 - **Grafana → *Flechtwerk — ADS-B Flight Tracker*** — a live map, an enriched
   table (airline / type with Wikipedia links, country, vertical rate), and
   now-stats: emergencies, fastest, highest, countries in view.
-- **Grafana → *Flechtwerk — ADS-B Live Aviation Events*** — a scrolling events
+- **Grafana → *Flechtwerk — ADS-B Aviation Events*** — a scrolling events
   feed, per-type counters, a near-miss list, and per-airline / per-country
   leaderboards. This is the "stop viewing, start deriving" payoff.
 - **Grafana → *Flechtwerk — Framework Metrics*** — all four stages roll up under

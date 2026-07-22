@@ -4,7 +4,7 @@ authors = [
 ]
 dependencies = [
     "flechtwerk[mqtt]==0.7.3",
-    # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_delay_monitor
+    # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_german_rail_delays
     # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
     # JSON stays the only Kafka wire codec. Brings `protobuf` transitively.
     "gtfs-realtime-bindings>=1.0",
@@ -75,9 +75,9 @@ test-integration = { cmd = "pytest -m integration", help = "Run only the integra
 setup-adsb = { cmd = "python -m examples.adsb_flight_tracker.setup", help = "Create the ADS-B topics and apply the ClickHouse schema (no region seeded — use request-region)" }
 request-region = { cmd = "python -m examples.adsb_flight_tracker.request", help = "Request a region to track: uv run poe request-region \"London\" [radius_nm]" }
 run-adsb-boundaries = { cmd = "python -m examples.adsb_flight_tracker boundaries", help = "Run ADS-B stage 0 alone: load the world + per-country reverse-geocoding maps (ClickHouse polygon dictionaries)" }
-run-adsb-ingest = { cmd = "python -m examples.adsb_flight_tracker ingest", help = "Run ADS-B stage 1 alone: ingest the raw adsb.lol feed to adsb.raw" }
-run-adsb-enrich = { cmd = "python -m examples.adsb_flight_tracker enrich", help = "Run ADS-B stage 2 alone: unroll + live-enrich to adsb.aircraft/events/cells" }
-run-adsb-conflict = { cmd = "python -m examples.adsb_flight_tracker conflict", help = "Run ADS-B stage 3 alone: baby-TCAS conflict detection over adsb.cells" }
+run-adsb-ingest = { cmd = "python -m examples.adsb_flight_tracker ingest", help = "Run ADS-B stage 1 alone: ingest the raw adsb.lol feed to adsb-raw" }
+run-adsb-enrich = { cmd = "python -m examples.adsb_flight_tracker enrich", help = "Run ADS-B stage 2 alone: unroll + live-enrich to adsb-{aircraft,events,cells}" }
+run-adsb-conflict = { cmd = "python -m examples.adsb_flight_tracker conflict", help = "Run ADS-B stage 3 alone: baby-TCAS conflict detection over adsb-cells" }
 setup-sink = { cmd = "python -m examples.clickhouse_sink.setup", help = "Apply the ClickHouse sink schema (dedup-enabled positions table)" }
 run-sink = { cmd = "python -m examples.clickhouse_sink", help = "Run the ClickHouse sink stage against the shared stack" }
 setup-chaos = { cmd = "python -m examples.chaos_harness.setup", help = "Create the chaos topics, produce input, apply the ClickHouse schema" }
@@ -92,10 +92,10 @@ run-gdelt-ingest = { cmd = "python -m examples.gdelt_news_stories ingest", help 
 run-gdelt-coverage = { cmd = "python -m examples.gdelt_news_stories coverage", help = "Run GDELT stage 2a: the Events x Mentions co-partitioned join -> gdelt-event-coverage" }
 run-gdelt-stories = { cmd = "python -m examples.gdelt_news_stories stories", help = "Run GDELT stage 2b: online clustering of GKG articles -> gdelt-stories" }
 run-gdelt-sink = { cmd = "python -m examples.gdelt_news_stories sink", help = "Run GDELT stage 3: sink stories + coverage into ClickHouse (idempotent)" }
-setup-trains = { cmd = "python -m examples.gtfs_delay_monitor.setup", help = "Create the GTFS delay-monitor topics, seed the feed configs, apply the ClickHouse schema" }
-run-trains-loader = { cmd = "python -m examples.gtfs_delay_monitor loader", help = "Run GTFS stage 0: load the fv static feed -> gtfs-trip-profiles (compacted dimension)" }
-run-trains-ingest = { cmd = "python -m examples.gtfs_delay_monitor ingest", help = "Run GTFS stage 1: poll the RT protobuf feed -> gtfs-trip-updates" }
-run-trains-delays = { cmd = "python -m examples.gtfs_delay_monitor delays", help = "Run GTFS stage 2: join updates x profiles -> gtfs-train-delays" }
+setup-gtfs = { cmd = "python -m examples.gtfs_german_rail_delays.setup", help = "Create the GTFS topics, seed the feed configs, apply the ClickHouse schema" }
+run-gtfs-loader = { cmd = "python -m examples.gtfs_german_rail_delays loader", help = "Run GTFS stage 0: load the fv static feed -> gtfs-trip-profiles (compacted dimension)" }
+run-gtfs-ingest = { cmd = "python -m examples.gtfs_german_rail_delays ingest", help = "Run GTFS stage 1: poll the RT protobuf feed -> gtfs-trip-updates" }
+run-gtfs-delays = { cmd = "python -m examples.gtfs_german_rail_delays delays", help = "Run GTFS stage 2: join updates x profiles -> gtfs-train-delays" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -172,8 +172,8 @@ wait
 help = "Quickstart: set up GDELT topics/configs/schema, then run all four stages (restart-on-crash)"
 sequence = ["setup-gdelt", "run-gdelt"]
 
-[tool.poe.tasks.run-trains]
-help = "Run all three GTFS delay-monitor stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+[tool.poe.tasks.run-gtfs]
+help = "Run all three GTFS stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
 # The same poor-man's supervisor as run-adsb/run-gdelt (see run-adsb's notes on the
 # process-group / Ctrl-C handling): plain `python -m` children in this shell's process
 # group, and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned —
@@ -181,16 +181,16 @@ help = "Run all three GTFS delay-monitor stages together, restarting any that cr
 # stage runs in its own restart loop; state restores from the changelog after a crash.
 shell = """
 trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
-supervise() { until "$@"; do echo "[run-trains] $* exited $? — restarting in 10s"; sleep 10; done; }
+supervise() { until "$@"; do echo "[run-gtfs] $* exited $? — restarting in 10s"; sleep 10; done; }
 for stage in loader ingest delays; do
-  supervise python -m examples.gtfs_delay_monitor $stage &
+  supervise python -m examples.gtfs_german_rail_delays $stage &
 done
 wait
 """
 
-[tool.poe.tasks.trains]
-help = "Quickstart: set up GTFS delay-monitor topics/configs/schema, then run all three stages (restart-on-crash)"
-sequence = ["setup-trains", "run-trains"]
+[tool.poe.tasks.gtfs]
+help = "Quickstart: set up GTFS topics/configs/schema, then run all three stages (restart-on-crash)"
+sequence = ["setup-gtfs", "run-gtfs"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"

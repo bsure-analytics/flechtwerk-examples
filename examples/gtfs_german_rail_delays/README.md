@@ -1,4 +1,4 @@
-# GTFS Delay Monitor
+# GTFS German Rail Delays
 
 A multi-stage pipeline over Germany's free open transit data that turns the national
 **GTFS-Realtime** feed into a live **delay/disruption monitor** for long-distance rail:
@@ -6,7 +6,7 @@ where every ICE/IC is right now, how late it is, and how punctual the network is
 to ClickHouse and shown in Grafana.
 
 <p align="center">
-  <img src="../../assets/gtfs-grafana.png" width="100%" alt="The German Rail Delays Grafana dashboard — a delay-coloured map of ICE/IC trains at their next stations, network punctuality, most-delayed trains, and a network-delay timeseries">
+  <img src="../../assets/gtfs-grafana.png" width="100%" alt="The GTFS German Rail Delays Grafana dashboard — a delay-coloured map of ICE/IC trains at their next stations, network punctuality, most-delayed trains, and a network-delay timeseries">
 </p>
 <p align="center"><em>Live in Grafana: ~120 long-distance trains placed at their next stations and coloured by delay, network punctuality (DB's &lt; 6 min "pünktlich"), the worst-delayed trains, and mean delay over time.</em></p>
 
@@ -98,20 +98,20 @@ Attribution: *Data © DELFI e.V., provided by gtfs.de, licensed CC-BY 4.0.*
 With the [stack](../../README.md#the-stack) up:
 
 ```bash
-uv run poe trains        # setup (topics + feed configs + schema) then run all three stages
+uv run poe gtfs        # setup (topics + feed configs + schema) then run all three stages
 ```
 
 or step by step:
 
 ```bash
-uv run poe setup-trains        # topics + feed configs + ClickHouse schema
-uv run poe run-trains-loader   # load the fv static feed -> gtfs-trip-profiles
-uv run poe run-trains-ingest   # poll the RT protobuf feed -> gtfs-trip-updates
-uv run poe run-trains-delays   # join updates x profiles -> gtfs-train-delays
+uv run poe setup-gtfs        # topics + feed configs + ClickHouse schema
+uv run poe run-gtfs-loader   # load the fv static feed -> gtfs-trip-profiles
+uv run poe run-gtfs-ingest   # poll the RT protobuf feed -> gtfs-trip-updates
+uv run poe run-gtfs-delays   # join updates x profiles -> gtfs-train-delays
 ```
 
 The loader publishes profiles once at startup; ingest picks up a fresh snapshot within a
-minute, so the **German Rail Delays** Grafana dashboard fills within ~1–2 min: a
+minute, so the **GTFS German Rail Delays** Grafana dashboard fills within ~1–2 min: a
 delay-coloured map of ~130 concurrent ICE/IC trains at their next stations, network
 punctuality (DB's "pünktlich" = under 6 minutes late), the most-delayed trains, mean
 delay by line, and a network-delay timeseries. Browse the topics in

@@ -5,7 +5,7 @@
     uv run poe run-trains-ingest    # stage 1: poll the RT protobuf feed -> gtfs-trip-updates
     uv run poe run-trains-delays    # stage 2: join updates x profiles -> gtfs-train-delays
 
-Each target selects a stage by name (``python -m examples.gtfs_delay_monitor <stage>``)
+Each target selects a stage by name (``python -m examples.gtfs_german_rail_delays <stage>``)
 and runs it through the shared ``examples._runner``. The demo constants live here, in
 the ops caller — the framework reads nothing from the environment. The ``metrics_port``s
 match the GTFS targets in ``prometheus/prometheus.yml``.

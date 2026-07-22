@@ -1,6 +1,6 @@
 {
   "uid": "flechtwerk-adsb-events",
-  "title": "Flechtwerk — ADS-B Live Aviation Events",
+  "title": "Flechtwerk — ADS-B Aviation Events",
   "tags": ["flechtwerk", "adsb"],
   "timezone": "browser",
   "schemaVersion": 39,

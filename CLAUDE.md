@@ -30,8 +30,9 @@ uv run poe cov              # every tier + coverage report
 uv run poe setup-<example>  # create topics / seed config / apply schema
 uv run poe run-<example>    # run one example against the shared stack
 uv run poe <example>        # quickstart: setup + run in one command, for the
-                            # self-contained examples (adsb, chaos, fermentation);
-                            # clickhouse_sink has none — it consumes example 1's output
+                            # self-contained examples (adsb, chaos, fermentation,
+                            # gdelt, gtfs); clickhouse_sink has none — it consumes
+                            # example 1's output
 ```
 
 ## The shared stack
@@ -115,9 +116,19 @@ setup-time twin: shared ops helpers each `setup.py` imports (e.g.
 names a leader before the broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
-Its Grafana dashboard, when it ships one, lives under `grafana/dashboards/` with
-a hyphenated name (e.g. `adsb-flight-tracker.json`); its poe targets are
-`setup-<name>` / `run-<name>`; its host metrics port follows the allocation in
+**Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
+`gtfs`, `fermentation`, `chaos`; the sink's ops key is `sink`) — and one
+**display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …), and
+every other name derives from those two: topics and consumer groups are
+`<key>-*`; ClickHouse tables are `<key>_*`, prefixed by the pipeline the data
+belongs to (which is why the sink writes `adsb_positions`); the folder is
+snake_case(title); the Grafana dashboard file is kebab-case(title) under
+`grafana/dashboards/`, its title `Flechtwerk — <Title>`, its uid
+`flechtwerk-<key>` (a secondary dashboard suffixes it: `flechtwerk-adsb-events`);
+poe targets are `setup-<key>` / `run-<key>[-<stage>]` / quickstart `<key>`; the
+Prometheus `example` label is the folder name. A README H1 is the display
+title, optionally followed by an em-dash tagline (`Chaos Harness — an
+Exactly-Once Proof`). An example's host metrics port follows the allocation in
 `prometheus/prometheus.yml` (`9101` adsb ingest + `9105` adsb enrich + `9106` adsb
 conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
 `9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
@@ -129,14 +140,14 @@ processes. Reverse geocoding is **staged and traffic-driven** over a stack of Cl
 `POLYGON` dictionaries (no Nominatim/PostGIS on the reverse path): the loader downloads a
 global ADM0 **world map** at startup (`__aenter__`, Natural Earth admin-0 — geoBoundaries'
 own global ADM0/CGAZ is ~400 MB, too heavy), and enrich detects each aircraft's country
-against it, writing that ISO-3 to the compacted `adsb.countries` topic; the loader consumes
+against it, writing that ISO-3 to the compacted `adsb-countries` topic; the loader consumes
 those as its poll targets and downloads **all** admin levels that country publishes
-(geoBoundaries ADM1…ADM5) into one `region_adm{n}_dict` each (all from the single
-`region_boundaries` table filtered by level), just-in-time. enrich `dictGet`s every level
+(geoBoundaries ADM1…ADM5) into one `adsb_region_adm{n}_dict` each (all from the single
+`adsb_region_boundaries` table filtered by level), just-in-time. enrich `dictGet`s every level
 for a point and concatenates the hits into a hierarchical label (`Le Bourget; Marne; Grand
 Est`) — one dict per level because a polygon dict returns only the finest containing
 polygon. **Nothing is seeded** — `setup.py` only creates topics + schema; a user requests a
-poll region with `uv run poe request-region "<name>"` (→ `request.py` → `adsb.regions`),
+poll region with `uv run poe request-region "<name>"` (→ `request.py` → `adsb-regions`),
 and forward geocoding of that name→centre uses public Nominatim (`ingest`). An extractor
 takes one config record per poll target, keyed on a compacted config topic (any producer,
 Kafbat included, works too); a transformer consumes a partitioned input topic instead.

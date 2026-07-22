@@ -128,4 +128,4 @@ class GtfsRtIngest(Extractor):
 
 
 stage = GtfsRtIngest()
-"""The stage the dispatcher runs (``python -m examples.gtfs_delay_monitor ingest``)."""
+"""The stage the dispatcher runs (``python -m examples.gtfs_german_rail_delays ingest``)."""

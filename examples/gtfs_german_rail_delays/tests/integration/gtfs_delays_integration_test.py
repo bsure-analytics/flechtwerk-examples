@@ -23,10 +23,10 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
 from flechtwerk.module import Flechtwerk
 
-from examples.gtfs_delay_monitor.delays import DELAYS_TOPIC, build_delay_state, classify, delays
-from examples.gtfs_delay_monitor.ingest import UPDATES_TOPIC, decode_feed
-from examples.gtfs_delay_monitor.loader import PROFILES_TOPIC, build_profiles
-from examples.gtfs_delay_monitor.setup import apply_clickhouse_schema
+from examples.gtfs_german_rail_delays.delays import DELAYS_TOPIC, build_delay_state, classify, delays
+from examples.gtfs_german_rail_delays.ingest import UPDATES_TOPIC, decode_feed
+from examples.gtfs_german_rail_delays.loader import PROFILES_TOPIC, build_profiles
+from examples.gtfs_german_rail_delays.setup import apply_clickhouse_schema
 
 pytestmark = pytest.mark.integration
 

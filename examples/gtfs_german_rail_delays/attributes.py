@@ -1,4 +1,4 @@
-"""Typed attributes for the GTFS delay monitor.
+"""Typed attributes for the GTFS German rail delays example.
 
 Following the framework's rule (and the ADS-B / GDELT precedent): declare an
 ``Attribute`` only for the fields the stages *compute with*; let the rest of the

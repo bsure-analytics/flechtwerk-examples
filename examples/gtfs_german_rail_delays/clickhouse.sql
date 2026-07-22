@@ -1,4 +1,4 @@
--- ClickHouse sink for the GTFS delay monitor.
+-- ClickHouse sink for the GTFS German rail delays example.
 --
 -- Like the ADS-B example, this takes the Kafka-engine SHORTCUT: ClickHouse's own
 -- Kafka table engine consumes the `gtfs-train-delays` stream directly and

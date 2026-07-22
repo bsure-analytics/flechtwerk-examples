@@ -4,7 +4,7 @@ Reverse geocoding is **staged**, driven by where the aircraft actually are (not 
 region you poll), so an aircraft over *any* country gets a fine label:
 
 1. **World map (all countries).** At startup this loader downloads a single small global
-   ADM0 file (Natural Earth admin-0) into ``world_boundaries_dict`` — a point → its
+   ADM0 file (Natural Earth admin-0) into ``adsb_world_boundaries_dict`` — a point → its
    country. The enrich stage uses it to detect which country each aircraft is over.
 2. **Per-country maps, just-in-time.** When enrich sees traffic over a country it has no
    fine map for, it writes that country's ISO-3 code to the ``adsb-countries`` topic. This
@@ -72,19 +72,19 @@ MAX_AGE_HOURS = 24 * 7
 WORLD_MAX_AGE_HOURS = 24 * 30
 """Reload the world map when it is older than this (a month) or absent — it changes rarely."""
 
-WORLD_TABLE = "flechtwerk.world_boundaries"
-WORLD_DICT = "flechtwerk.world_boundaries_dict"
+WORLD_TABLE = "flechtwerk.adsb_world_boundaries"
+WORLD_DICT = "flechtwerk.adsb_world_boundaries_dict"
 """Global ADM0 polygon dictionary (point → country); the enrich stage's country detector."""
-BOUNDARY_TABLE = "flechtwerk.region_boundaries"
+BOUNDARY_TABLE = "flechtwerk.adsb_region_boundaries"
 """All countries' admin areas at all levels (tagged by ``iso3`` + ``admin_level``), the
 source table behind the per-level dictionaries."""
 
 
 def region_dict(level: str) -> str:
     """The per-level polygon dictionary name for a geoBoundaries admin level (e.g. ``ADM3``
-    → ``flechtwerk.region_adm3_dict``). One dict per level so a point resolves at *each*
+    → ``flechtwerk.adsb_region_adm3_dict``). One dict per level so a point resolves at *each*
     level — a single polygon dict returns only the finest containing polygon."""
-    return f"flechtwerk.region_{level.lower()}_dict"
+    return f"flechtwerk.adsb_region_{level.lower()}_dict"
 
 
 def _multipolygon(geometry: dict[str, Any]) -> list:
@@ -108,7 +108,7 @@ def _features(geojson: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def world_rows(geojson: dict[str, Any], loaded_at: int) -> list[dict[str, Any]]:
-    """Project a Natural Earth admin-0 FeatureCollection into ``world_boundaries`` rows.
+    """Project a Natural Earth admin-0 FeatureCollection into ``adsb_world_boundaries`` rows.
 
     One row per country: the normalised geometry, its ``NAME`` (country name) and
     ``ADM0_A3`` (ISO-3). Pure and I/O-free. ``loaded_at`` is Unix seconds.
@@ -126,7 +126,7 @@ def world_rows(geojson: dict[str, Any], loaded_at: int) -> list[dict[str, Any]]:
 
 
 def boundary_rows(geojson: dict[str, Any], iso3: str, admin_level: str, loaded_at: int) -> list[dict[str, Any]]:
-    """Project a per-country geoBoundaries FeatureCollection into ``region_boundaries`` rows.
+    """Project a per-country geoBoundaries FeatureCollection into ``adsb_region_boundaries`` rows.
 
     One row per admin area: the normalised geometry, its ``shapeName``, the owning country's
     ISO-3 (for per-country replacement/freshness), and the ``admin_level`` this
@@ -213,7 +213,7 @@ class CountryLoader(Extractor):
         return response.json()
 
     async def _ensure_world(self) -> None:
-        """Download the world ADM0 map into ``world_boundaries`` if absent or stale, then
+        """Download the world ADM0 map into ``adsb_world_boundaries`` if absent or stale, then
         reload its dictionary. Called at startup and re-checked on every country poll."""
         if await self._fresh(WORLD_TABLE, "1", WORLD_MAX_AGE_HOURS):
             return

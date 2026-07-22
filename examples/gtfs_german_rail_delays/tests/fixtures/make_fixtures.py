@@ -3,7 +3,7 @@
 NOT a test (pytest ignores it — no ``_test`` suffix). Run it to refresh the
 tiny, committed fixtures used by the logic/runner tiers:
 
-    uv run python examples/gtfs_delay_monitor/tests/fixtures/make_fixtures.py \\
+    uv run python examples/gtfs_german_rail_delays/tests/fixtures/make_fixtures.py \\
         <rt.pb> <fv.zip>
 
 ``rt.pb``  = a snapshot of https://realtime.gtfs.de/realtime-free.pb

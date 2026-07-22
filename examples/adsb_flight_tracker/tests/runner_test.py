@@ -303,7 +303,7 @@ async def test_country_loader_runs_through_the_extractor_runner() -> None:
     await runner.poll_one(runner.entries["DEU"])
 
     assert producer.sent == []                                              # no data message emitted
-    assert any("SYSTEM RELOAD DICTIONARY " in s and "region_adm" in s for s in statements)  # a country map loaded
+    assert any("SYSTEM RELOAD DICTIONARY " in s and "adsb_region_adm" in s for s in statements)  # a country map loaded
     assert await runner.tasks[0].store.get("DEU") is not None              # the State page committed
 
 

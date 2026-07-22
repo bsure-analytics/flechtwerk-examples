@@ -41,15 +41,15 @@ def _ddl(user: str, password: str) -> list[str]:
     """
     src = f"USER '{user}' PASSWORD '{password}'"
     return [
-        f"CREATE TABLE flechtwerk.world_boundaries (geometry {_GEOM}, country String, iso3 String, "
+        f"CREATE TABLE flechtwerk.adsb_world_boundaries (geometry {_GEOM}, country String, iso3 String, "
         "loaded_at DateTime) ENGINE = MergeTree ORDER BY iso3",
-        f"CREATE DICTIONARY flechtwerk.world_boundaries_dict (geometry {_GEOM}, country String, iso3 String) "
-        f"PRIMARY KEY geometry SOURCE(CLICKHOUSE(TABLE 'world_boundaries' DB 'flechtwerk' {src})) "
+        f"CREATE DICTIONARY flechtwerk.adsb_world_boundaries_dict (geometry {_GEOM}, country String, iso3 String) "
+        f"PRIMARY KEY geometry SOURCE(CLICKHOUSE(TABLE 'adsb_world_boundaries' DB 'flechtwerk' {src})) "
         "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))",
-        f"CREATE TABLE flechtwerk.region_boundaries (geometry {_GEOM}, name String, iso3 String, "
+        f"CREATE TABLE flechtwerk.adsb_region_boundaries (geometry {_GEOM}, name String, iso3 String, "
         "admin_level LowCardinality(String), loaded_at DateTime) ENGINE = MergeTree ORDER BY (iso3, name)",
         *(f"CREATE DICTIONARY {region_dict(level)} (geometry {_GEOM}, name String) PRIMARY KEY geometry "
-          f"SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.region_boundaries WHERE admin_level = ''{level}''' {src})) "
+          f"SOURCE(CLICKHOUSE(QUERY 'SELECT geometry, name FROM flechtwerk.adsb_region_boundaries WHERE admin_level = ''{level}''' {src})) "
           "LIFETIME(0) LAYOUT(POLYGON(STORE_POLYGON_KEY_COLUMN 1))"
           for level in ADMIN_LEVELS),
     ]
@@ -66,14 +66,14 @@ async def test_staged_hierarchical_reverse_geocoder_on_real_clickhouse(clickhous
         for statement in _ddl(clickhouse["user"], clickhouse["password"]):
             (await ch.post("/", content=statement)).raise_for_status()
         rows = [
-            ("world_boundaries", {"geometry": _BIG, "country": "Testland", "iso3": "TST", "loaded_at": 1_700_000_000}),
-            ("region_boundaries", {"geometry": _BIG, "name": "Bigland", "iso3": "TST",
+            ("adsb_world_boundaries", {"geometry": _BIG, "country": "Testland", "iso3": "TST", "loaded_at": 1_700_000_000}),
+            ("adsb_region_boundaries", {"geometry": _BIG, "name": "Bigland", "iso3": "TST",
                                    "admin_level": "ADM1", "loaded_at": 1_700_000_000}),
-            ("region_boundaries", {"geometry": _SMALL, "name": "Smalltown", "iso3": "TST",
+            ("adsb_region_boundaries", {"geometry": _SMALL, "name": "Smalltown", "iso3": "TST",
                                    "admin_level": "ADM2", "loaded_at": 1_700_000_000}),
-            ("region_boundaries", {"geometry": _TWIN1, "name": "Twinvale", "iso3": "TST",
+            ("adsb_region_boundaries", {"geometry": _TWIN1, "name": "Twinvale", "iso3": "TST",
                                    "admin_level": "ADM1", "loaded_at": 1_700_000_000}),
-            ("region_boundaries", {"geometry": _TWIN2, "name": "Twinvale", "iso3": "TST",
+            ("adsb_region_boundaries", {"geometry": _TWIN2, "name": "Twinvale", "iso3": "TST",
                                    "admin_level": "ADM2", "loaded_at": 1_700_000_000}),
         ]
         for table, row in rows:

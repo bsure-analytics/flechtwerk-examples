@@ -1,6 +1,6 @@
 {
-  "uid": "flechtwerk-gtfs-delays",
-  "title": "Flechtwerk — German Rail Delays",
+  "uid": "flechtwerk-gtfs",
+  "title": "Flechtwerk — GTFS German Rail Delays",
   "tags": ["flechtwerk", "gtfs"],
   "timezone": "browser",
   "schemaVersion": 39,
