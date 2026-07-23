@@ -183,7 +183,28 @@ Kafbat included, works too); a transformer consumes a partitioned input topic in
   optional profile).
 - **Postgres as a second store** — ClickHouse covers it; YAGNI.
 - **DuckDB as a live sink** — in-process, single-writer, wrong shape (fine for a
-  historical/analytical angle only).
+  historical/analytical angle only). Same verdict for **chDB** (embedded
+  ClickHouse).
+- **StarRocks / Apache Doris** — the closest real competitors (MySQL protocol,
+  StarRocks even ships an `allin1` image), but no equivalent of ClickHouse's
+  polygon dictionaries, which the ADS-B reverse-geocoding path is built on;
+  Doris also wants separate FE/BE processes.
+- **QuestDB and time-series engines (InfluxDB 3, VictoriaMetrics, GreptimeDB,
+  TDengine)** — time-series-shaped, not general OLAP: weak JSON, no polygon
+  support, weaker joins. Fine for fermentation/smard-style data, fails
+  adsb/gdelt.
+- **Apache Pinot** — Druid's sibling, rejected for the same reason: multi-
+  component + Zookeeper, far too heavy for a demo stack.
+- **Streaming databases (RisingWave, Materialize, Timeplus/Proton, Feldera)** —
+  they do the stream transformation themselves, competing with the thing the
+  examples exist to showcase. Flechtwerk is the streaming layer; the store
+  should just store.
+- **Elasticsearch / OpenSearch** — JVM-heavy document store, query DSL instead
+  of first-class SQL; wrong idiom for the analytics-store role.
+- **CrateDB** — decent geo + Postgres protocol, but fading ecosystem and a
+  Lucene-based engine that's slower for OLAP scans.
+- **Rockset / Tinybird** — SaaS-only (Rockset shut down after the OpenAI
+  acquisition); not self-hostable infrastructure.
 - **Examples living in the main repo** — weight, issue-tracker noise, silent rot
   vs. this repo's deliberate version pinning.
 
