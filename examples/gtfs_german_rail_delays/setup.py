@@ -1,6 +1,6 @@
 """One-shot setup for the GTFS delay-monitor pipeline — idempotent, safe to re-run.
 
-    uv run poe setup-trains
+    uv run poe setup-gtfs
 
 Creates the config topics and the pipeline topics, seeds the two feed configs (which
 static feed the loader parses and which realtime feed ingest polls), and applies the

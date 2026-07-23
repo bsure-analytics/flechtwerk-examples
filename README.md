@@ -4,7 +4,7 @@
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
   <a href="https://bsure-analytics.github.io/flechtwerk/"><img src="https://img.shields.io/badge/docs-online-6d2530" alt="Documentation"></a>
   <a href="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml"><img src="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/flechtwerk/0.7.1/"><img src="https://img.shields.io/badge/flechtwerk-0.7.1-6d2530" alt="Pinned flechtwerk version"></a>
+  <a href="https://pypi.org/project/flechtwerk/0.7.4/"><img src="https://img.shields.io/badge/flechtwerk-0.7.4-6d2530" alt="Pinned flechtwerk version"></a>
   <img src="https://img.shields.io/badge/python-3.14-blue.svg" alt="Python 3.14">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
@@ -74,7 +74,9 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 ## The Stack
 
 `docker compose up` (or `uv run poe up`) brings up six long-running services
-(plus a one-shot `kafka-init` that chowns the Kafka volume and exits):
+(plus two one-shots that exit: `kafka-init` chowns the Kafka volume, and
+`kafka-features` turns off ELR on the single broker — see the note in
+`docker-compose.yaml`):
 
 | Service | URL / port | What it's for |
 |---|---|---|
@@ -141,7 +143,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.7.1`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.7.4`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.

@@ -37,8 +37,9 @@ uv run poe <example>        # quickstart: setup + run in one command, for the
 
 ## The shared stack
 
-One `docker-compose.yaml` at the repo root — six long-running services plus a
-one-shot `kafka-init`, no profiles, no override files. Ports: Kafka `9092` (host) / `kafka:19092` (in-network),
+One `docker-compose.yaml` at the repo root — six long-running services plus two
+one-shots (`kafka-init` and the ELR-downgrading `kafka-features`), no profiles,
+no override files. Ports: Kafka `9092` (host) / `kafka:19092` (in-network),
 Kafbat UI `8080`, Mosquitto `1883`, ClickHouse `8123` HTTP + `9000` native,
 Prometheus `9090`, Grafana `3000` (anonymous). ClickHouse holds all example
 output in the `flechtwerk` database. Kafka persists across restarts (the

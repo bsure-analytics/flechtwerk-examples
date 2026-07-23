@@ -3,7 +3,7 @@ authors = [
     { name = "Christian Schlichtherle" },
 ]
 dependencies = [
-    "flechtwerk[mqtt]==0.7.3",
+    "flechtwerk[mqtt]==0.7.4",
     # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_german_rail_delays
     # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
     # JSON stays the only Kafka wire codec. Brings `protobuf` transitively.

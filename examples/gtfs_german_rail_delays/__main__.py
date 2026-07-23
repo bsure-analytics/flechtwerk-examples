@@ -1,9 +1,9 @@
 """Run a GTFS delay-monitor stage against the shared stack.
 
-    uv run poe setup-trains         # topics + feed configs + ClickHouse schema
-    uv run poe run-trains-loader    # stage 0: fv static feed -> gtfs-trip-profiles
-    uv run poe run-trains-ingest    # stage 1: poll the RT protobuf feed -> gtfs-trip-updates
-    uv run poe run-trains-delays    # stage 2: join updates x profiles -> gtfs-train-delays
+    uv run poe setup-gtfs           # topics + feed configs + ClickHouse schema
+    uv run poe run-gtfs-loader      # stage 0: fv static feed -> gtfs-trip-profiles
+    uv run poe run-gtfs-ingest      # stage 1: poll the RT protobuf feed -> gtfs-trip-updates
+    uv run poe run-gtfs-delays      # stage 2: join updates x profiles -> gtfs-train-delays
 
 Each target selects a stage by name (``python -m examples.gtfs_german_rail_delays <stage>``)
 and runs it through the shared ``examples._runner``. The demo constants live here, in

@@ -89,7 +89,10 @@ class AdsbIngest(Extractor):
             self.client = httpx.AsyncClient(
                 base_url=ADSB_BASE_URL,
                 headers={"User-Agent": USER_AGENT},
-                timeout=httpx.Timeout(10.0),
+                # A max-radius poll over busy airspace takes ~10 s on adsb.lol's
+                # side — a 10 s timeout would ride that edge and crash on every
+                # slow day.
+                timeout=httpx.Timeout(60.0),
             )
         if self.geocoder is None:
             self.geocoder = NominatimGeocoder()  # pragma: no cover — live path

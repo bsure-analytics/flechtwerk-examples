@@ -48,8 +48,9 @@ Four primitives the other examples don't:
    event and every mention of it land on the same task/state bucket — the framework's
    co-partitioning contract, which *is* the join.
 3. **Online clustering in keyed state.** `GdeltStories` groups GKG articles into stories by
-   thresholded feature-set similarity (overlap coefficient over persons ∪ orgs ∪ top themes),
-   with URL dedup and TTL eviction — all in one keyed-state bucket.
+   thresholded feature-set similarity (overlap coefficient over persons ∪ organizations —
+   themes are deliberately excluded as merge magnets), with URL dedup and TTL eviction —
+   all in one keyed-state bucket.
 4. **Config-topic enrichment (GlobalKTable-style).** Each story is annotated with its
    **coverage spread** — how many distinct countries' outlets carry it. An outlet's country
    is *derived* from its ccTLD at runtime (`bbc.co.uk` → GB), so most domains need no data;
