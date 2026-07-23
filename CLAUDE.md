@@ -161,8 +161,9 @@ Kafbat included, works too); a transformer consumes a partitioned input topic in
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's
   `PrometheusObserver` calls `.labels(**metrics_labels)` on every metric, so `{}`
   crashes at startup. Pass at least one label (e.g. `{"client_id": client_id}`).
-  Metrics are named `flechtwerk_*`; the `example` label the dashboards filter on
-  is added by the Prometheus scrape config, so don't also set it in the app.
+  Metrics are named `flechtwerk_*`; the `example` and `stage`
+  (`extractor`/`transformer`) labels the dashboards filter on are added by the
+  Prometheus scrape config, so don't also set them in the app.
 - **`client_id`** is the process identity — unique per instance, stable across
   restarts; it anchors transactional-producer fencing and the MQTT session.
 - Typed attributes at the JSON edge (`Config`/`Event`/`State` + `Attribute`);

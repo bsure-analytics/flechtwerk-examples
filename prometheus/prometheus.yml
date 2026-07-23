@@ -12,51 +12,53 @@ scrape_configs:
   # host from inside the container via host.docker.internal (see the
   # extra_hosts mapping on the prometheus service). Each target stays "down"
   # until you start the matching example — that is expected, not a failure.
+  # Every target carries the two identity labels the dashboards filter on:
+  # example (the pipeline) and stage (extractor | transformer).
   - job_name: flechtwerk
     static_configs:
       # adsb_flight_tracker runs four host stages under one example label: the
       # boundary loader (9107), the ingest extractor (9101), the enrich transformer
       # (9105), and the conflict transformer (9106).
       - targets: ["host.docker.internal:9107"]
-        labels: { example: adsb_flight_tracker }
+        labels: { example: adsb_flight_tracker, stage: extractor }
       - targets: ["host.docker.internal:9101"]
-        labels: { example: adsb_flight_tracker }
+        labels: { example: adsb_flight_tracker, stage: extractor }
       - targets: ["host.docker.internal:9105"]
-        labels: { example: adsb_flight_tracker }
+        labels: { example: adsb_flight_tracker, stage: transformer }
       - targets: ["host.docker.internal:9106"]
-        labels: { example: adsb_flight_tracker }
+        labels: { example: adsb_flight_tracker, stage: transformer }
       - targets: ["host.docker.internal:9102"]
-        labels: { example: clickhouse_sink }
+        labels: { example: clickhouse_sink, stage: transformer }
       # (chaos_harness runs metrics-off — its rapid SIGKILL restarts would race
       #  to rebind a scrape port; the EOS proof needs no metrics.)
       # fermentation_monitor runs two host stages under one example label: the
       # bridge (extractor, 9104) and the stateful monitor (transformer, 9103).
       - targets: ["host.docker.internal:9103"]
-        labels: { example: fermentation_monitor }
+        labels: { example: fermentation_monitor, stage: transformer }
       - targets: ["host.docker.internal:9104"]
-        labels: { example: fermentation_monitor }
+        labels: { example: fermentation_monitor, stage: extractor }
       # gdelt_news_stories runs four host stages under one example label:
       # ingest (9108), the coverage join (9109), stories clustering (9110), and the
       # sink (9111). (The outlet table is static, seeded by setup.py — no runtime stage.)
       - targets: ["host.docker.internal:9108"]
-        labels: { example: gdelt_news_stories }
+        labels: { example: gdelt_news_stories, stage: extractor }
       - targets: ["host.docker.internal:9109"]
-        labels: { example: gdelt_news_stories }
+        labels: { example: gdelt_news_stories, stage: transformer }
       - targets: ["host.docker.internal:9110"]
-        labels: { example: gdelt_news_stories }
+        labels: { example: gdelt_news_stories, stage: transformer }
       - targets: ["host.docker.internal:9111"]
-        labels: { example: gdelt_news_stories }
+        labels: { example: gdelt_news_stories, stage: transformer }
       # gtfs_german_rail_delays runs three host stages under one example label:
       # ingest (9112), the delay join (9113), and the static loader (9114).
       - targets: ["host.docker.internal:9112"]
-        labels: { example: gtfs_german_rail_delays }
+        labels: { example: gtfs_german_rail_delays, stage: extractor }
       - targets: ["host.docker.internal:9113"]
-        labels: { example: gtfs_german_rail_delays }
+        labels: { example: gtfs_german_rail_delays, stage: transformer }
       - targets: ["host.docker.internal:9114"]
-        labels: { example: gtfs_german_rail_delays }
+        labels: { example: gtfs_german_rail_delays, stage: extractor }
       # smard_german_electricity_market runs two host stages under one example label:
       # ingest (9115) and the cross-series mix join (9116).
       - targets: ["host.docker.internal:9115"]
-        labels: { example: smard_german_electricity_market }
+        labels: { example: smard_german_electricity_market, stage: extractor }
       - targets: ["host.docker.internal:9116"]
-        labels: { example: smard_german_electricity_market }
+        labels: { example: smard_german_electricity_market, stage: transformer }
