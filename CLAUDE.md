@@ -46,7 +46,7 @@ output in the `flechtwerk` database. Kafka persists across restarts (the
 scrapes host-run stages via `host.docker.internal:<port>`. Grafana provisions
 datasources + dashboards under `grafana/`: a per-example dashboard for the
 examples that ship one (adsb ships two — `adsb-flight-tracker` and
-`adsb-aviation-events` — plus fermentation), and the shared `framework-metrics`
+`adsb-aviation-events` — plus fermentation), and the shared `observability`
 and `stream-data`.
 
 Stages run **on the host** (`uv run poe run-<example>`) and connect to

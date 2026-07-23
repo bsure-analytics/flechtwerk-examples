@@ -85,9 +85,10 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 | Prometheus | <http://localhost:9090> | scrapes each running stage's metrics endpoint |
 | Grafana | <http://localhost:3000> | provisioned dashboards (anonymous access) |
 
-Grafana provisions dashboards tagged `flechtwerk`: **Framework Metrics** (the
-`flechtwerk_*` Prometheus metrics — messages in/out, transactions committed,
-batch sizes, state restores, config-store and ownership gauges), **Stream Data**
+Grafana provisions dashboards tagged `flechtwerk`: **Observability** (the
+`flechtwerk_*` Prometheus metrics — throughput, latency, extractor poll cycles,
+MQTT, config store, transformer tasks & state restore, process health —
+filterable by example, stage, and client), **Stream Data**
 (a ClickHouse datasource smoke test), and per-example dashboards — **ADS-B Flight
 Tracker** (a live map + enriched table), **ADS-B Aviation Events**
 (emergencies, rapid descents, going-dark, near-misses), **Fermentation

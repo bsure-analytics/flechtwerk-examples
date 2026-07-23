@@ -165,7 +165,7 @@ services:
 
   prometheus:
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
+      - --config.file=/etc/prometheus/config/prometheus.yml
       - --storage.tsdb.path=/prometheus
     extra_hosts:
       # Lets Prometheus (in the container) scrape stages running on the host.
@@ -176,7 +176,11 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Mount the directory, not the single file: editors save via atomic
+      # rename (new inode), and a single-file bind mount stays pinned to the
+      # old inode — the container then reads a stale, truncated config.
+      # Directory mounts resolve by name, so edits + SIGHUP just work.
+      - ./prometheus:/etc/prometheus/config:ro
       - prometheus:/prometheus
 
 volumes:

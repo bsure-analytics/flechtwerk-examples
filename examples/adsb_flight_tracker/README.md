@@ -160,8 +160,9 @@ Then watch it live at <http://localhost:3000>:
 - **Grafana → *Flechtwerk — ADS-B Aviation Events*** — a scrolling events
   feed, per-type counters, a near-miss list, and per-airline / per-country
   leaderboards. This is the "stop viewing, start deriving" payoff.
-- **Grafana → *Flechtwerk — Framework Metrics*** — all four stages roll up under
-  `adsb_flight_tracker`: messages out/sec, transactions committed, state restores.
+- **Grafana → *Flechtwerk — Observability*** — pick `adsb_flight_tracker` in the
+  Example filter to watch all four stages: throughput by client and topic,
+  processing latency, poll cycles, transactions committed, state restores.
 - **Kafbat UI** (<http://localhost:8080>): the `adsb-raw` (whole responses),
   `adsb-aircraft`, `adsb-events`, and `adsb-cells` records as they land.
 
