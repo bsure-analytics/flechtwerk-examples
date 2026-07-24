@@ -4,7 +4,7 @@
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
   <a href="https://bsure-analytics.github.io/flechtwerk/"><img src="https://img.shields.io/badge/docs-online-6d2530" alt="Documentation"></a>
   <a href="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml"><img src="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/flechtwerk/0.7.4/"><img src="https://img.shields.io/badge/flechtwerk-0.7.4-6d2530" alt="Pinned flechtwerk version"></a>
+  <a href="https://pypi.org/project/flechtwerk/0.7.5/"><img src="https://img.shields.io/badge/flechtwerk-0.7.5-6d2530" alt="Pinned flechtwerk version"></a>
   <img src="https://img.shields.io/badge/python-3.14-blue.svg" alt="Python 3.14">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
@@ -48,6 +48,7 @@ scenario under `examples/`:
 | 5 | [`gdelt_news_stories`](examples/gdelt_news_stories) | batch-file firehose ingestion (a resume-cursor `Extractor` over the GDELT 15-min feed), a co-partitioned Events⋈Mentions join with out-of-order buffering, online clustering of articles into stories in keyed state, and config-topic (GlobalKTable-style) outlet enrichment | `gdelt` |
 | 6 | [`gtfs_german_rail_delays`](examples/gtfs_german_rail_delays) | a **binary (protobuf) source decoded at the edge** (Germany's GTFS-Realtime feed), a stream⋈**static-dimension** join (live delays ⋈ the schedule, co-partitioned by `trip_id` via a compacted profile topic), and a self-healing snapshot source — a live German long-distance rail **delay** monitor | `gtfs` |
 | 7 | [`smard_german_electricity_market`](examples/smard_german_electricity_market) | **late data / revisions**: a resume-cursor `Extractor` that diffs each snapshot against a 48 h window to re-emit *corrections*, **stream-time punctuation** (the poller emits `settled` markers the transformer turns into a preliminary→final lifecycle + state tombstone), and a co-partitioned join whose key is **time** — Germany's live electricity generation mix, load, and day-ahead prices from Bundesnetzagentur SMARD.de | `smard` |
+| 8 | [`odds_arbitrage_radar`](examples/odds_arbitrage_radar) | **N-source fan-in + event-time staleness**: two *independent* extractors sharing one config topic, each polling a different venue into one pair-keyed quote stream, merged by a transformer into a per-pair best-price state that flags **cross-venue arbitrage** — live Polymarket × Kalshi prediction-market odds, with a fresh net-positive edge (after fees) as the signal. Read-only, keyless public data | `odds` |
 
 Each example is self-contained under its own directory with its own README.
 
@@ -106,7 +107,8 @@ Stages run on the host and expose Prometheus metrics on a per-example port
 boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
 GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader, `9115`
-SMARD ingest + `9116` SMARD mix; the chaos harness runs metrics-off);
+SMARD ingest + `9116` SMARD mix, `9117` odds Polymarket + `9118` odds Kalshi + `9119`
+odds radar; the chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
@@ -143,7 +145,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.7.4`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.7.5`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.

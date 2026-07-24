@@ -3,7 +3,7 @@ authors = [
     { name = "Christian Schlichtherle" },
 ]
 dependencies = [
-    "flechtwerk[mqtt]==0.7.4",
+    "flechtwerk[mqtt]==0.7.5",
     # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_german_rail_delays
     # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
     # JSON stays the only Kafka wire codec. Brings `protobuf` transitively.
@@ -99,6 +99,11 @@ run-gtfs-delays = { cmd = "python -m examples.gtfs_german_rail_delays delays", h
 setup-smard = { cmd = "python -m examples.smard_german_electricity_market.setup", help = "Create the SMARD topics, seed the series configs, apply the ClickHouse schema" }
 run-smard-ingest = { cmd = "python -m examples.smard_german_electricity_market ingest", help = "Run SMARD stage 1: poll each series, diff against the revision window -> smard-observations" }
 run-smard-mix = { cmd = "python -m examples.smard_german_electricity_market mix", help = "Run SMARD stage 2: join series by interval -> smard-mix (preliminary -> final on settle)" }
+setup-odds = { cmd = "python -m examples.odds_arbitrage_radar.setup", help = "Create the odds topics and apply the ClickHouse schema (no pair seeded — use request-pair)" }
+request-pair = { cmd = "python -m examples.odds_arbitrage_radar.request", help = "Validate + request a pair to watch: uv run poe request-pair <poly-slug> <kalshi-ticker> \"<yes outcome>\" (or: retire <poly-slug>)" }
+run-odds-polymarket = { cmd = "python -m examples.odds_arbitrage_radar polymarket", help = "Run odds stage 1a: poll Polymarket order books -> odds-quotes" }
+run-odds-kalshi = { cmd = "python -m examples.odds_arbitrage_radar kalshi", help = "Run odds stage 1b: poll Kalshi markets -> odds-quotes" }
+run-odds-radar = { cmd = "python -m examples.odds_arbitrage_radar radar", help = "Run odds stage 2: fan-in both venues' quotes -> odds-margins / odds-signals" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -214,6 +219,27 @@ wait
 [tool.poe.tasks.smard]
 help = "Quickstart: set up SMARD topics/configs/schema, then run both stages (restart-on-crash)"
 sequence = ["setup-smard", "run-smard"]
+
+[tool.poe.tasks.run-odds]
+help = "Run all three odds stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# The same poor-man's supervisor as run-adsb/run-gdelt/run-gtfs/run-smard (see run-adsb's notes on
+# the process-group / Ctrl-C handling): plain `python -m` children in this shell's process group,
+# and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned — with
+# `trap "" TERM` so this shell survives its own `kill 0` and exits 0 for poe. Each stage runs in
+# its own restart loop; a stateless extractor restarts cleanly and the radar restores from the
+# changelog after a crash.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-odds] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in polymarket kalshi radar; do
+  supervise python -m examples.odds_arbitrage_radar $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.odds]
+help = "Quickstart: set up odds topics/schema, then run all three stages (restart-on-crash). Request pairs with request-pair."
+sequence = ["setup-odds", "run-odds"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"

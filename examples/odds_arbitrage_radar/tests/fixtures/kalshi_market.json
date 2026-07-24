@@ -1,0 +1,19 @@
+{
+  "market": {
+    "ticker": "KXMLBGAME-26JUL261410COLMIL-MIL",
+    "event_ticker": "KXMLBGAME-26JUL261410COLMIL",
+    "title": "Colorado vs Milwaukee Winner?",
+    "status": "active",
+    "yes_sub_title": "Milwaukee",
+    "no_sub_title": "Milwaukee",
+    "yes_bid_dollars": "0.7000",
+    "yes_ask_dollars": "0.7600",
+    "no_bid_dollars": "0.2400",
+    "no_ask_dollars": "0.3000",
+    "yes_bid_size_fp": "997.00",
+    "yes_ask_size_fp": "1404.06",
+    "close_time": "2026-07-29T18:10:00Z",
+    "rules_primary": "If Milwaukee wins the Colorado vs Milwaukee professional baseball game originally scheduled for Jul 26, 2026 at 2:10 PM EDT, then the market resolves to Yes.",
+    "last_price_dollars": "0.7600"
+  }
+}

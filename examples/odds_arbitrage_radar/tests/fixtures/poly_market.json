@@ -1,0 +1,19 @@
+[
+  {
+    "slug": "mlb-col-mil-2026-07-24",
+    "question": "Colorado Rockies vs. Milwaukee Brewers",
+    "outcomes": "[\"Colorado Rockies\", \"Milwaukee Brewers\"]",
+    "clobTokenIds": "[\"53548894311647188711162088677092543120748118280367419783397474201726509932920\", \"115070836039790716369829613778951536399560249507663974755941599581102900464446\"]",
+    "active": true,
+    "closed": false,
+    "archived": false,
+    "acceptingOrders": true,
+    "negRisk": false,
+    "orderPriceMinTickSize": 0.01,
+    "orderMinSize": 5,
+    "sportsMarketType": "moneyline",
+    "gameStartTime": "2026-07-24 20:10:00+00",
+    "bestBid": 0.31,
+    "bestAsk": 0.32
+  }
+]

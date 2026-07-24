@@ -1,0 +1,556 @@
+{
+ "uid": "flechtwerk-odds",
+ "title": "Flechtwerk \u2014 Odds Arbitrage Radar",
+ "tags": [
+  "flechtwerk"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "timepicker": {},
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "pair",
+    "label": "Pair",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "query": {
+     "refId": "pair",
+     "editorType": "sql",
+     "rawSql": "SELECT DISTINCT pair_key FROM flechtwerk.odds_quotes ORDER BY pair_key"
+    },
+    "refresh": 2,
+    "includeAll": false,
+    "multi": false,
+    "sort": 1,
+    "current": {}
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Net edge over time (after fees) \u2014 per pair \u00d7 direction",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "decimals": 2,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": true
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "value": null,
+        "color": "red"
+       },
+       {
+        "value": 0,
+        "color": "green"
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "transformations": [
+    {
+     "id": "partitionByValues",
+     "options": {
+      "fields": [
+       "series"
+      ],
+      "keepFields": false
+     }
+    },
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^net_edge (.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ],
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "timeseries",
+     "format": 2,
+     "rawSql": "SELECT computed_at AS time, concat(pair_key, ' \u00b7 ', direction) AS series, net_edge FROM flechtwerk.odds_margins WHERE fresh = 1 AND $__timeFilter(computed_at) ORDER BY time"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "table",
+   "title": "Closest to free money (latest fresh net edge)",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 10,
+    "x": 14,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 4
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "net_edge"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percentunit"
+       },
+       {
+        "id": "custom.width",
+        "value": 95
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "transparent"
+          },
+          {
+           "value": 0,
+           "color": "green"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gross_edge"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percentunit"
+       },
+       {
+        "id": "custom.width",
+        "value": 95
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pair_key"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 150
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "direction"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 200
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "net_edge",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT pair_key, direction, argMax(net_edge, computed_at) AS net_edge, argMax(gross_edge, computed_at) AS gross_edge, max(computed_at) AS as_of FROM flechtwerk.odds_margins WHERE fresh = 1 AND $__timeFilter(computed_at) GROUP BY pair_key, direction ORDER BY net_edge DESC"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Gross vs. net \u2014 $pair (fees are the gap)",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "decimals": 2,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": true
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "value": null,
+        "color": "red"
+       },
+       {
+        "value": 0,
+        "color": "green"
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "transformations": [
+    {
+     "id": "partitionByValues",
+     "options": {
+      "fields": [
+       "series"
+      ],
+      "keepFields": false
+     }
+    },
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^v (.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ],
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "timeseries",
+     "format": 2,
+     "rawSql": "SELECT time, concat(direction, ' ', metric) AS series, v FROM (  SELECT computed_at AS time, direction, 'gross' AS metric, gross_edge AS v   FROM flechtwerk.odds_margins WHERE pair_key = '$pair' AND $__timeFilter(computed_at)  UNION ALL   SELECT computed_at AS time, direction, 'net' AS metric, net_edge AS v   FROM flechtwerk.odds_margins WHERE pair_key = '$pair' AND $__timeFilter(computed_at)) ORDER BY time"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "YES ask by venue \u2014 $pair (divergence is the opportunity)",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 3,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "showPoints": "never",
+      "spanNulls": true
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "calcs": []
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "transformations": [
+    {
+     "id": "partitionByValues",
+     "options": {
+      "fields": [
+       "venue"
+      ],
+      "keepFields": false
+     }
+    },
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^yes_ask (.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ],
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "timeseries",
+     "format": 2,
+     "rawSql": "SELECT fetched_at AS time, venue, yes_ask FROM flechtwerk.odds_quotes WHERE pair_key = '$pair' AND isNotNull(yes_ask) AND $__timeFilter(fetched_at) ORDER BY time"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "table",
+   "title": "Signals \u2014 fresh, net-positive after fees (an actual paper arb)",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 14,
+    "x": 0,
+    "y": 17
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 4
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "net_edge"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percentunit"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gross_edge"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percentunit"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "time",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT computed_at AS time, pair_key, direction, net_edge, gross_edge, fees, executable_size FROM flechtwerk.odds_signals WHERE $__timeFilter(computed_at) ORDER BY computed_at DESC LIMIT 200"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "table",
+   "title": "Quote freshness (age of last quote per venue)",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 10,
+    "x": 14,
+    "y": 17
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "age_seconds"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "green"
+          },
+          {
+           "value": 300,
+           "color": "red"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "age_seconds",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT pair_key, venue, max(fetched_at) AS last_quote, dateDiff('second', max(fetched_at), now()) AS age_seconds FROM flechtwerk.odds_quotes WHERE $__timeFilter(fetched_at) GROUP BY pair_key, venue ORDER BY age_seconds DESC"
+    }
+   ]
+  }
+ ]
+}

@@ -118,7 +118,7 @@ names a leader before the broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `smard`, `fermentation`, `chaos`; the sink's ops key is `sink`) — and one
+`gtfs`, `smard`, `fermentation`, `chaos`, `odds`; the sink's ops key is `sink`) — and one
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …), and
 every other name derives from those two: topics and consumer groups are
 `<key>-*`; ClickHouse tables are `<key>_*`, prefixed by the pipeline the data
@@ -134,7 +134,7 @@ Exactly-Once Proof`). An example's host metrics port follows the allocation in
 conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
 `9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
 gtfs ingest + `9113` gtfs delays + `9114` gtfs loader, `9115` smard ingest + `9116`
-smard mix; the chaos harness runs
+smard mix, `9117` odds polymarket + `9118` odds kalshi + `9119` odds radar; the chaos harness runs
 metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
 data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
 companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
@@ -152,7 +152,16 @@ polygon. **Nothing is seeded** — `setup.py` only creates topics + schema; a us
 poll region with `uv run poe request-region "<name>"` (→ `request.py` → `adsb-regions`),
 and forward geocoding of that name→centre uses public Nominatim (`ingest`). An extractor
 takes one config record per poll target, keyed on a compacted config topic (any producer,
-Kafbat included, works too); a transformer consumes a partitioned input topic instead.
+Kafbat included, works too); a transformer consumes a partitioned input topic instead. The
+**Odds Arbitrage Radar** (`odds`) is the N-source fan-in case: two *independent* extractor
+processes (`polymarket`, `kalshi`) share the one compacted config topic `odds-pairs` and both
+produce to the one partitioned topic `odds-quotes` keyed by pair, so the `radar` transformer
+sees both venues' quotes co-partitioned onto one task; it holds the latest quote per venue in
+its join state, recomputes the cross-venue arbitrage on every update (emitting a continuous
+`odds-margins` stream + a sparse `odds-signals` stream), gates signals on event-time freshness
+(the two legs' `fetched_at`), and tombstones the pair's state when a venue reports the market
+closed. Both extractors are stateless snapshot pollers (no cursor). Keyless public data
+(Polymarket Gamma/CLOB + Kalshi), read-only — it never places an order.
 
 ## Conventions carried from the framework (keep these)
 

@@ -62,3 +62,11 @@ scrape_configs:
         labels: { example: smard_german_electricity_market, stage: extractor }
       - targets: ["host.docker.internal:9116"]
         labels: { example: smard_german_electricity_market, stage: transformer }
+      # odds_arbitrage_radar runs three host stages under one example label: the Polymarket
+      # extractor (9117), the Kalshi extractor (9118), and the radar fan-in transformer (9119).
+      - targets: ["host.docker.internal:9117"]
+        labels: { example: odds_arbitrage_radar, stage: extractor }
+      - targets: ["host.docker.internal:9118"]
+        labels: { example: odds_arbitrage_radar, stage: extractor }
+      - targets: ["host.docker.internal:9119"]
+        labels: { example: odds_arbitrage_radar, stage: transformer }
