@@ -42,7 +42,25 @@ one-shots (`kafka-init` and the ELR-downgrading `kafka-features`), no profiles,
 no override files. Ports: Kafka `9092` (host) / `kafka:19092` (in-network),
 Kafbat UI `8080`, Mosquitto `1883`, ClickHouse `8123` HTTP + `9000` native,
 Prometheus `9090`, Grafana `3000` (anonymous). ClickHouse holds all example
-output in the `flechtwerk` database. Kafka persists across restarts (the
+output in the **one** `flechtwerk` database (created by
+`clickhouse/init/01-init.sql`) — deliberately not the built-in `default`, and
+deliberately not one database per example. `default` is the unqualified-
+resolution target every client lands in without asking, so app tables there mix
+with ad-hoc scratch and can't be dropped as a unit; a named DB is the "this
+stack's data" boundary and matches how a real deployment looks. One DB (not
+per-app) because the demo presents a **single output surface** — one Grafana
+datasource, one `SHOW TABLES FROM flechtwerk` — and because the `<pipeline>_`
+table prefix already tracks *the pipeline the data belongs to, not the process
+that wrote it*: the `clickhouse_sink` example writes `adsb_positions`, so
+per-app DBs would force it to either reach into another app's DB (`adsb.*`) or
+mislabel the data's pipeline (`sink.*`). The per-app-teardown upside never pays
+off here anyway — `setup-<key>` is `CREATE TABLE IF NOT EXISTS` and the only
+reset is `poe clean` dropping the whole volume. Every SQL reference is
+**fully-qualified** (`flechtwerk.<table>`) rather than relying on a session
+default: `setup.py` applies `clickhouse.sql` one statement per HTTP request (a
+`USE` wouldn't carry across requests), and materialized views / polygon
+dictionaries bind their DB at creation time — qualification keeps the schema
+file self-contained and re-runnable. Kafka persists across restarts (the
 `kafka-init` one-shot `chown`s the volume to the broker's uid). Prometheus
 scrapes host-run stages via `host.docker.internal:<port>`. Grafana provisions
 datasources + dashboards under `grafana/`: a per-example dashboard for the
