@@ -32,7 +32,12 @@ published package, exercised exactly the way a consumer would use it.
   &nbsp;
   <a href="examples/smard_german_electricity_market"><img src="assets/smard-grafana.png" width="49%" alt="SMARD German Electricity Market — the live Grafana dashboard (generation mix by source, day-ahead price into tomorrow, renewables share and CO₂ intensity, corrections feed of revised values)"></a>
 </p>
-<p align="center"><em>Four of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, and <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>.</em></p>
+<p align="center">
+  <a href="examples/odds_arbitrage_radar"><img src="assets/odds-grafana.png" width="49%" alt="Odds Arbitrage Radar — the live Grafana dashboard (net edge after fees per pair and direction, closest-to-free-money leaderboard, gross vs. net, per-venue YES asks, quote freshness)"></a>
+  &nbsp;
+  <a href="grafana/dashboards/observability.json"><img src="assets/observability-grafana.png" width="49%" alt="Observability — the shared Grafana dashboard over the flechtwerk_* Prometheus metrics (active stages and configs, message throughput, processing latency, extractor poll cycles), filterable by example, stage, and client"></a>
+</p>
+<p align="center"><em>Five of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>, and <a href="examples/odds_arbitrage_radar">Odds Arbitrage Radar</a> — plus the shared <a href="grafana/dashboards/observability.json">Observability</a> dashboard watching every running stage.</em></p>
 
 ## What's Inside
 
@@ -98,9 +103,12 @@ Tracker** (a live map + enriched table), **ADS-B Aviation Events**
 Monitor** (gravity curves + alerts), **GDELT News Stories** (breaking-news
 velocity, top stories, a tone-coloured world map, coverage spread),
 **GTFS German Rail Delays** (a delay-coloured map of ICE/IC trains, network
-punctuality, most-delayed trains, a network-delay timeseries), and **SMARD German
+punctuality, most-delayed trains, a network-delay timeseries), **SMARD German
 Electricity Market** (the generation mix by source, day-ahead price into tomorrow,
-renewables share and CO₂ intensity, and a live corrections feed of revised values).
+renewables share and CO₂ intensity, and a live corrections feed of revised values),
+and **Odds Arbitrage Radar** (the net edge after fees per pair and direction, a
+closest-to-free-money leaderboard, gross vs. net, the two venues' YES asks, signals,
+and quote freshness).
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B

@@ -10,6 +10,11 @@ appears. It is the repo's answer to a question the others don't ask: *how do you
 sources into one materialized view and act on a derived condition — without letting a stale
 input lie to you?*
 
+<p align="center">
+  <img src="../../assets/odds-grafana.png" width="100%" alt="The Odds Arbitrage Radar Grafana dashboard — the net edge after fees per pair and direction, a closest-to-free-money leaderboard, gross vs. net for one pair, the two venues' YES asks, an empty signals table, and per-venue quote freshness">
+</p>
+<p align="center"><em>Live in Grafana: the net edge after fees per pair × direction, the closest-to-free-money leaderboard, gross vs. net (the gap is the fees), the two venues' YES asks, and quote freshness. The signals table stays empty until a fresh net-positive edge actually appears — which is the honest state most of the time.</em></p>
+
 ```mermaid
 flowchart LR
     PM{{"Polymarket<br/>Gamma + CLOB (no auth)"}}:::ext --> PMX["PolymarketQuotes (Extractor)<br/>slug → 1 gamma + 2 book GETs<br/>best bid/ask per outcome"]:::process
