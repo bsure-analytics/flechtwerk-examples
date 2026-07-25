@@ -31,8 +31,8 @@ uv run poe setup-<example>  # create topics / seed config / apply schema
 uv run poe run-<example>    # run one example against the shared stack
 uv run poe <example>        # quickstart: setup + run in one command, for the
                             # self-contained examples (adsb, chaos, fermentation,
-                            # gdelt, gtfs, smard); clickhouse_sink has none — it
-                            # consumes example 1's output
+                            # gdelt, gtfs, odds, smard, wildfire); clickhouse_sink
+                            # has none — it consumes example 1's output
 ```
 
 ## The shared stack
@@ -136,9 +136,14 @@ names a leader before the broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `smard`, `fermentation`, `chaos`, `odds`; the sink's ops key is `sink`) — and one
-**display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …), and
-every other name derives from those two: topics and consumer groups are
+`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`; the sink's ops key is `sink`) — and one
+**display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …). The two are
+**not independent**: the key is the *first token of the folder*, i.e. of
+snake_case(title) — `odds_arbitrage_radar` → `odds`, `wildfire_watch` → `wildfire`. Every
+example obeys this (the sink is the lone exception, ops key `sink`), so don't invent a key
+that doesn't appear in the title: a synonym (`fires` for `wildfire_watch`) leaves the repo
+with two competing prefixes for one example and every derived name has to pick a side.
+Everything else derives from those two: topics and consumer groups are
 `<key>-*`; ClickHouse tables are `<key>_*`, prefixed by the pipeline the data
 belongs to (which is why the sink writes `adsb_positions`); the folder is
 snake_case(title); the Grafana dashboard file is kebab-case(title) under
@@ -152,7 +157,8 @@ Exactly-Once Proof`). An example's host metrics port follows the allocation in
 conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
 `9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
 gtfs ingest + `9113` gtfs delays + `9114` gtfs loader, `9115` smard ingest + `9116`
-smard mix, `9117` odds polymarket + `9118` odds kalshi + `9119` odds radar; the chaos harness runs
+smard mix, `9117` odds polymarket + `9118` odds kalshi + `9119` odds radar, `9120` wildfire ingest +
+`9121` wildfire tracker; the chaos harness runs
 metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
 data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
 companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
@@ -179,13 +185,41 @@ its join state, recomputes the cross-venue arbitrage on every update (emitting a
 `odds-margins` stream + a sparse `odds-signals` stream), gates signals on event-time freshness
 (the two legs' `fetched_at`), and tombstones the pair's state when a venue reports the market
 closed. Both extractors are stateless snapshot pollers (no cursor). Keyless public data
-(Polymarket Gamma/CLOB + Kalshi), read-only — it never places an order.
+(Polymarket Gamma/CLOB + Kalshi), read-only — it never places an order. **Wildfire Watch**
+(`wildfire`) is the spatiotemporal-sessionization case and the **only example needing an API key**:
+`ingest` polls NASA FIRMS' area API for two VIIRS satellites per watch region (a compacted
+`wildfire-regions` config record carrying a place name **and its cached bounding box** — `request.py`
+geocodes at request time via Nominatim's `boundingbox`, the one field no other example reads, and
+writes all four edges into the record so it is self-describing and the tool can warn about
+overlapping regions by intersecting rectangles; `enrich_config` is the **fallback** that geocodes
+**once** for a name-only record, e.g. one hand-produced in Kafbat), emits the new
+375 m hotspot pixels **then one `sweep` marker** to `wildfire-detections`, and keeps a **bounded,
+event-time-pruned seen-set** as its cursor (FIRMS has no row id and nothing monotonic: identity is
+a 12-hex hash of the raw CSV strings, bucketed by `acq_date`, whole buckets dropped as the day
+window rolls, hard-capped at 20 k ids for the ~1 MB changelog ceiling). The `tracker` transformer
+clusters those points into **persistent fire objects** in keyed state (`FIRES = {fire_id: entry}`,
+2 km link distance, `F_*` raw keys, pure core in `tracking.py`) with a full lifecycle: ignition,
+growth, merge when one detection bridges two fires, and **extinction after 12 h of event time** —
+driven *entirely* by the sweep marker, which is emitted even on a quiet poll because the framework
+has no timers (so status heartbeats are sweep-paced, not detection-paced, and no input means no
+extinction). The region's bucket is tombstoned when its last fire dies. Outputs: `wildfire-status`
+(continuous per-fire snapshots → `wildfire_status` history + `wildfire_active` ReplacingMergeTree) and
+`wildfire-events` (sparse ignition/merged/extinguished, no TTL). `wildfire-detections` feeds **two**
+ClickHouse tables by kind — `wildfire_detections` and `wildfire_sweeps`, the latter existing so a
+freshness panel can tell "nothing burning" from "poller stopped". A false extinction self-heals as
+a new ignition — documented, not hidden.
 
 ## Conventions carried from the framework (keep these)
 
 - **No environment-variable magic inside stages.** All configuration is injected
   by the caller (`Flechtwerk.of(...)`, or a config topic record). `setup.py` /
-  `__main__.py` are the ops callers and may hold demo constants.
+  `__main__.py` are the ops callers and may hold demo constants. Two `__main__.py`s
+  deliberately read the environment *as the ops caller* and inject what they find:
+  `chaos_harness` (an env-driven `application_id`, to prove transactional fencing) and
+  `wildfire_watch` (the `FIRMS_MAP_KEY` credential NASA requires, injected as
+  `FirmsIngest(map_key=…)`). The rule holds where it matters — no stage touches
+  `os.environ`. `wildfire_watch/ingest.py` therefore has **no module-level `stage`**
+  singleton, since a credential can't be baked in at import time.
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's
   `PrometheusObserver` calls `.labels(**metrics_labels)` on every metric, so `{}`
   crashes at startup. Pass at least one label (e.g. `{"client_id": client_id}`).

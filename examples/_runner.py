@@ -7,10 +7,12 @@ dispatcher that maps a stage name to a call of :func:`run` with that stage's dem
 constants (:func:`dispatch` does the name → callable lookup).
 
 Configuration is injected here by the ops caller, never read from the environment
-— the framework's rule (see ``CLAUDE.md``). The one exception is ``chaos_harness``,
-whose harness spawns short-lived copies with an env-driven ``application_id`` to
-prove transactional fencing; its ``__main__`` reads those env values and passes
-them straight into :func:`run`.
+— the framework's rule (see ``CLAUDE.md``). Two ops callers read the environment
+themselves and pass what they find straight in, so the *stages* stay env-free:
+``chaos_harness``, whose harness spawns short-lived copies with an env-driven
+``application_id`` to prove transactional fencing, and ``wildfire_watch``, whose
+``__main__`` reads the ``FIRMS_MAP_KEY`` credential NASA's API requires and injects
+it as a constructor argument to the ingest stage.
 """
 import logging
 import sys

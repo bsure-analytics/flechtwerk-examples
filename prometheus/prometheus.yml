@@ -70,3 +70,9 @@ scrape_configs:
         labels: { example: odds_arbitrage_radar, stage: extractor }
       - targets: ["host.docker.internal:9119"]
         labels: { example: odds_arbitrage_radar, stage: transformer }
+      # wildfire_watch runs two host stages under one example label: ingest (9120) and the fire
+      # tracker (9121).
+      - targets: ["host.docker.internal:9120"]
+        labels: { example: wildfire_watch, stage: extractor }
+      - targets: ["host.docker.internal:9121"]
+        labels: { example: wildfire_watch, stage: transformer }

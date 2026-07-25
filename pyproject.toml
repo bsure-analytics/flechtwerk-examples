@@ -104,6 +104,10 @@ request-pair = { cmd = "python -m examples.odds_arbitrage_radar.request", help =
 run-odds-polymarket = { cmd = "python -m examples.odds_arbitrage_radar polymarket", help = "Run odds stage 1a: poll Polymarket order books -> odds-quotes" }
 run-odds-kalshi = { cmd = "python -m examples.odds_arbitrage_radar kalshi", help = "Run odds stage 1b: poll Kalshi markets -> odds-quotes" }
 run-odds-radar = { cmd = "python -m examples.odds_arbitrage_radar radar", help = "Run odds stage 2: fan-in both venues' quotes -> odds-margins / odds-signals" }
+setup-wildfire = { cmd = "python -m examples.wildfire_watch.setup", help = "Create the Wildfire Watch topics and apply the ClickHouse schema (no region seeded — use request-wildfire)" }
+request-wildfire = { cmd = "python -m examples.wildfire_watch.request", help = "Validate + request a region to watch: uv run poe request-wildfire \"Attica, Greece\" [west south east north] (or: retire <slug>)" }
+run-wildfire-ingest = { cmd = "python -m examples.wildfire_watch ingest", help = "Run Wildfire Watch stage 1: poll both VIIRS satellites -> wildfire-detections (needs FIRMS_MAP_KEY)" }
+run-wildfire-tracker = { cmd = "python -m examples.wildfire_watch tracker", help = "Run Wildfire Watch stage 2: cluster detections into persistent fires -> wildfire-status / wildfire-events" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -240,6 +244,31 @@ wait
 [tool.poe.tasks.odds]
 help = "Quickstart: set up odds topics/schema, then run all three stages (restart-on-crash). Request pairs with request-pair."
 sequence = ["setup-odds", "run-odds"]
+
+[tool.poe.tasks.run-wildfire]
+help = "Run both Wildfire Watch stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator). Needs FIRMS_MAP_KEY."
+# The same poor-man's supervisor as run-adsb/run-gdelt/run-gtfs/run-smard/run-odds (see run-adsb's
+# notes on the process-group / Ctrl-C handling): plain `python -m` children in this shell's process
+# group, and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is orphaned — with
+# `trap "" TERM` so this shell survives its own `kill 0` and exits 0 for poe. Each stage runs in its
+# own restart loop; the tracker restores its fires from the changelog after a crash.
+#
+# The one addition: the `:?` guard fails the whole task ONCE, loudly, when FIRMS_MAP_KEY is unset.
+# Without it the ingest supervisor would spin — `__main__`'s sys.exit is non-zero, so `until` would
+# re-run it every 10 s forever — and the real message would scroll away in restart spam.
+shell = """
+: "${FIRMS_MAP_KEY:?export FIRMS_MAP_KEY first — free instant key at https://firms.modaps.eosdis.nasa.gov/api/map_key/}"
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-wildfire] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in ingest tracker; do
+  supervise python -m examples.wildfire_watch $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.wildfire]
+help = "Quickstart: set up Wildfire Watch topics/schema, then run both stages (restart-on-crash). Request regions with request-wildfire."
+sequence = ["setup-wildfire", "run-wildfire"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"

@@ -1,0 +1,23 @@
+[
+    {
+        "place_id": 296232144,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "node",
+        "osm_id": 1763537517,
+        "lat": "38.0551003",
+        "lon": "-7.8605799",
+        "category": "place",
+        "type": "region",
+        "place_rank": 18,
+        "importance": 0.16005901197833217,
+        "addresstype": "region",
+        "name": "Região do Alentejo",
+        "display_name": "Região do Alentejo, Beja, 7800-246, Portugal",
+        "boundingbox": [
+            "37.0551003",
+            "39.0551003",
+            "-8.8605799",
+            "-6.8605799"
+        ]
+    }
+]

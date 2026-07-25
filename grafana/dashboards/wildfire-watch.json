@@ -1,0 +1,333 @@
+{
+  "uid": "flechtwerk-wildfire",
+  "title": "Flechtwerk — Wildfire Watch",
+  "tags": ["flechtwerk"],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "region",
+        "label": "Region",
+        "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+        "query": {
+          "refId": "region",
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT region FROM flechtwerk.wildfire_sweeps ORDER BY region"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "geomap",
+      "title": "Active fires — marker size = detections, colour = peak FRP (MW)",
+      "description": "Big markers are the clustered fire objects the tracker holds in state, sized by how many 375 m hotspot pixels they have absorbed and coloured by their hottest pixel. The small translucent dots underneath are the raw detections of the last 24 h — the evidence the clusters are built from. A detection is a pixel that contained fire, not a point source. Both layers are GROUPED (by fire_id and detection_id) so a fire or pixel inside two overlapping watch regions draws once, not twice; the `regions` field lists every region that sees it. The view opens world-scale because a watch region can be anywhere; zoom to yours (Grafana's auto-fit view is not honoured by the ClickHouse datasource here).",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 13, "w": 14, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {},
+          "color": { "mode": "continuous-GrYlRd" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "basemap": { "type": "default", "name": "Basemap" },
+        "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": true },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Raw detections (24 h)",
+            "location": { "mode": "auto" },
+            "filterData": { "id": "byRefId", "options": "B" },
+            "config": {
+              "showLegend": false,
+              "style": {
+                "size": { "fixed": 3 },
+                "color": { "fixed": "orange" },
+                "opacity": 0.35,
+                "symbol": { "fixed": "img/icons/marker/circle.svg" }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Fires",
+            "location": { "mode": "auto" },
+            "filterData": { "id": "byRefId", "options": "A" },
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": { "field": "detections", "fixed": 5, "min": 4, "max": 15 },
+                "color": { "field": "frp" },
+                "opacity": 0.75,
+                "symbol": { "fixed": "img/icons/marker/circle.svg" }
+              }
+            }
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "view": { "id": "zero", "lat": 20, "lon": 0, "zoom": 2 }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT fire_id, arrayStringConcat(groupUniqArray(region), ', ') AS regions, max(detections) AS detections, round(max(frp_max), 1) AS frp, max(last_seen) AS seen_at, avg(lat) AS latitude, avg(lon) AS longitude FROM flechtwerk.wildfire_active FINAL WHERE status = 'active' AND region IN ($region) AND as_of > now() - INTERVAL 24 HOUR GROUP BY fire_id"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT any(lat) AS latitude, any(lon) AS longitude FROM flechtwerk.wildfire_detections WHERE region IN ($region) AND acquired_at > now() - INTERVAL 24 HOUR GROUP BY detection_id"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active fires now",
+      "description": "Distinct fires burning now, read from the ReplacingMergeTree FINAL. Counted with uniqExact(fire_id), not count(): the tracker holds one fire object per watch region, so a fire inside two overlapping regions occupies two state buckets and would otherwise be counted twice. Because a fire_id is derived from its founding detection, both regions name it identically — which is what makes this dedupe possible. A fire leaves the count when a sweep marker finds it unseen for 12 h of event time.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 5, "color": "yellow" },
+              { "value": 20, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT uniqExact(fire_id) AS active_fires FROM flechtwerk.wildfire_active FINAL WHERE status = 'active' AND region IN ($region) AND as_of > now() - INTERVAL 24 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Largest active fires",
+      "description": "Ranked by absorbed detections, one row per distinct fire (grouped by fire_id, so a fire seen by two overlapping watch regions appears once — `regions` lists which). `burning_for` is last_seen − first_seen in event time, so it measures the observed lifetime of the cluster, not wall-clock age.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 4 },
+      "fieldConfig": {
+        "defaults": { "decimals": 1 },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "frp_max" },
+            "properties": [
+              { "id": "unit", "value": "short" },
+              { "id": "custom.width", "value": 95 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "value": null, "color": "transparent" },
+                    { "value": 50, "color": "orange" },
+                    { "value": 200, "color": "red" }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "burning_for" },
+            "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 0 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "detections" },
+            "properties": [{ "id": "decimals", "value": 0 }, { "id": "custom.width", "value": 90 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "regions" },
+            "properties": [{ "id": "custom.width", "value": 230 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "fire_id" },
+            "properties": [{ "id": "custom.width", "value": 130 }]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT * FROM (SELECT fire_id, arrayStringConcat(groupUniqArray(region), ', ') AS regions, max(detections) AS detections, round(max(frp_max), 1) AS frp_max, round(max(frp_sum), 1) AS frp_sum, min(first_seen) AS started, dateDiff('second', min(first_seen), max(last_seen)) AS burning_for FROM flechtwerk.wildfire_active FINAL WHERE status = 'active' AND region IN ($region) AND as_of > now() - INTERVAL 24 HOUR GROUP BY fire_id) ORDER BY detections DESC, frp_max DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Total fire radiative power per region (MW, sweep-paced)",
+      "description": "Summed frp_sum across every active fire, one point per sweep. Because status is emitted per sweep rather than per detection, this line has a steady cadence even while nothing new is being detected — which is exactly what the sweep marker is for.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT as_of AS time, region, sum(frp_sum) AS frp FROM flechtwerk.wildfire_status WHERE status = 'active' AND region IN ($region) AND $__timeFilter(as_of) GROUP BY time, region ORDER BY time"
+        }
+      ],
+      "transformations": [
+        { "id": "partitionByValues", "options": { "fields": ["region"], "keepFields": false } },
+        { "id": "renameByRegex", "options": { "regex": "^frp (.*)$", "renamePattern": "$1" } }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Fire log — ignition / merged / extinguished",
+      "description": "The sparse lifecycle stream, newest first, kept without a TTL. `merged_into` is set only on a merge (two hotspot groups turned out to be one blaze). An extinguished fire followed by an ignition in the same place is the documented self-healing case: a false extinction repairing itself.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "kind" },
+            "properties": [
+              { "id": "custom.width", "value": 110 },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "mappings", "value": [
+                { "type": "value", "options": { "ignition": { "color": "red", "index": 0, "text": "ignition" } } },
+                { "type": "value", "options": { "merged": { "color": "yellow", "index": 1, "text": "merged" } } },
+                { "type": "value", "options": { "extinguished": { "color": "green", "index": 2, "text": "extinguished" } } }
+              ] }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "detections" },
+            "properties": [{ "id": "decimals", "value": 0 }, { "id": "custom.width", "value": 90 }]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "time", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT occurred_at AS time, kind, region, fire_id, detections, round(frp_max, 1) AS frp_max, merged_into FROM flechtwerk.wildfire_events WHERE region IN ($region) AND $__timeFilter(occurred_at) ORDER BY occurred_at DESC LIMIT 200"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Poll heartbeat — is the watch alive? (sweep markers)",
+      "description": "Read from the sweep markers, not the detections: a region with nothing burning still sweeps, so a fresh age here means \"polling fine, no fires\" while a stale age means the ingest stage has stopped. That distinction is the whole reason the marker is emitted even on a quiet poll — and it matters because no input means no time means no extinction.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 21 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "age_seconds" },
+            "properties": [
+              { "id": "unit", "value": "s" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "value": null, "color": "green" },
+                    { "value": 900, "color": "red" }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "sweeps" },
+            "properties": [{ "id": "decimals", "value": 0 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "new_detections" },
+            "properties": [{ "id": "decimals", "value": 0 }]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT region, max(sweep_at) AS last_sweep, dateDiff('second', max(sweep_at), now()) AS age_seconds, count() AS sweeps, sum(new_detections) AS new_detections FROM flechtwerk.wildfire_sweeps WHERE region IN ($region) AND $__timeFilter(sweep_at) GROUP BY region ORDER BY region"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,299 @@
+# Wildfire Watch — NASA FIRMS Active-Fire Detections
+
+NASA's polar-orbiting satellites spot wildfires from space and publish them within minutes to
+hours of acquisition. This example polls that feed for the regions you care about, clusters the
+raw 375 m hotspot pixels into **persistent fire objects** held in keyed state — each with a
+lifecycle of *ignition → growth → merge → extinction* — and lands detections, per-fire status
+snapshots, and sparse lifecycle events in ClickHouse for a live fire map. The non-nerd pitch:
+*watch NASA's satellites find wildfires from orbit, on your own map.*
+
+It is the repo's answer to a question the others don't ask: *how do you turn a stream of
+unlabelled points into named, long-lived entities that are born, grow, merge, and die — when the
+source gives you no ids, no cursor, and no clock?*
+
+<p align="center">
+  <img src="../../assets/wildfire-grafana.png" width="100%" alt="The Wildfire Watch Grafana dashboard — a world fire map with markers sized by detection count and coloured by radiative power, the active-fire count, the largest active fires ranked by detections, total FRP per region, the ignition/merge/extinction log, and a poll-heartbeat table">
+</p>
+<p align="center"><em>Live in Grafana, watching two Iberian regions during the 2026 fire season: a 1386-detection fire complex in Extremadura peaking at 506 MW, the largest active fires ranked by absorbed pixels, the sweep-paced FRP timeline, the lifecycle log, and the poll heartbeat that tells "nothing burning" apart from "poller stopped". The map opens world-scale on purpose — a watch region can be anywhere — so zoom to yours.</em></p>
+
+```mermaid
+flowchart LR
+    NOM{{"Nominatim<br/>/search (boundingbox)"}}:::ext --> RQ["request.py<br/>name → slug + validated bbox"]:::process
+    RQ --> CFG(["wildfire-regions<br/>(compacted config)"]):::topic
+    CFG --> IX["FirmsIngest (Extractor)<br/>2 GETs/region: NOAA-20 + NOAA-21<br/>5 min poll, day_range=2<br/>bounded seen-set = the cursor"]:::process
+    FIRMS{{"NASA FIRMS<br/>area API, CSV (MAP_KEY)"}}:::ext --> IX
+    IX --> D(["wildfire-detections<br/>detection | sweep<br/>(keyed by region)"]):::topic
+    D --> TR["tracker (Transformer)<br/>FIRES = {fire_id: entry}<br/>cluster / merge on detections;<br/>sweep → heartbeat + extinction"]:::process
+    D --> CHD[("ClickHouse:<br/>wildfire_detections + wildfire_sweeps")]:::store
+    TR --> S(["wildfire-status<br/>(continuous, per sweep)"]):::topic
+    TR --> E(["wildfire-events<br/>(ignition/merged/extinguished)"]):::topic
+    S --> CHS[("ClickHouse:<br/>wildfire_status + wildfire_active")]:::store
+    E --> CHE[("ClickHouse: wildfire_events")]:::store
+    CHD --> GRAF{{"Grafana"}}:::ext
+    CHS --> GRAF
+    CHE --> GRAF
+    classDef process fill:#dbeafe,stroke:#2563eb,color:#0b1324;
+    classDef topic fill:#fef3c7,stroke:#d97706,color:#0b1324;
+    classDef store fill:#e5e7eb,stroke:#6b7280,color:#0b1324;
+    classDef ext fill:#dcfce7,stroke:#16a34a,color:#0b1324;
+```
+
+## What it demonstrates
+
+Primitives the other examples don't:
+
+1. **Spatiotemporal sessionization.** The tracker clusters point detections into persistent
+   *fire objects* in keyed state. A detection within `LINK_KM` (2 km) of an existing fire's
+   footprint joins it; an unmatched detection founds a new fire (an **ignition**); a detection
+   that bridges two fires **merges** them (they were one blaze the satellites had caught as two
+   groups); a fire unseen for `EXTINGUISH_AFTER` (12 h) of **event time** is declared
+   **extinguished** and leaves the state — and when the last fire in a region goes, the region's
+   whole bucket is tombstoned. GDELT clusters text into stories by similarity; this is the
+   session-window shape — entities *born, grown, and killed by timeout* — with geography as the
+   metric. All of it lives in a framework-free [`tracking.py`](tracking.py), so the logic tier
+   drives every branch including extinction.
+2. **The third point on the cursor spectrum.** ADS-B and Odds teach *snapshot source → no state
+   at all*; GDELT and SMARD teach *monotonic feed → resume cursor*. FIRMS is neither. The area
+   API returns a **rolling day-window snapshot** into which late detections keep arriving (NRT
+   delivery runs up to ~3 h behind acquisition, so re-polling the same window keeps yielding
+   genuinely new rows for old times), and it ships **no unique row id and nothing monotonic to
+   resume from**. So the honest cursor is a **bounded, event-time-pruned seen-set**: derived
+   identity hashes bucketed by acquisition date, whole buckets dropped as the window rolls, and
+   hard-capped against the ~1 MB changelog-record ceiling — the GDELT lesson, promoted here to a
+   first-class teaching point.
+3. **Markers as the transformer's only clock, extended.** The framework has no timers, so
+   periodic transformer logic has to ride on input records. The poller therefore emits one
+   `sweep` marker per region per poll — **even when it found nothing new** — and the tracker
+   hangs its *entire* lifecycle off it: status heartbeats *and* extinction timeouts. SMARD's
+   settle marker finalizes one interval; this one paces an ongoing lifecycle. The trade is
+   explicit: **no input means no time means no extinction.** If ingest stops, fires freeze as
+   they were rather than silently ageing out — the safer failure, but it does mean a stalled
+   poller looks like a still-burning landscape, which is why the sweep's `new_detections = 0` and
+   the dashboard's heartbeat panel exist.
+4. **The first bring-your-own-key example** — see below. The credential flows through the **ops
+   caller**, so the stage stays env-free.
+
+Secondary points worth seeing: **multi-source polling per config record** (two satellites merged
+into one poll transaction, deduped against one seen-set); event-time out-of-orderness that is
+*real* rather than simulated (two birds, pass-batched arrivals, ≤3 h NRT lag), handled by
+`min`/`max` folds instead of buffering; and **determinism** — fire ids derive from their founding
+detection and merge survivors are chosen by earliest `first_seen` with a lexicographic tie-break,
+so replaying the same stream rebuilds identical state.
+
+## The data
+
+[NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) distributes active-fire detections from
+several satellite instruments. This example uses the two **NOAA VIIRS** birds at 375 m
+resolution, through one endpoint that does everything:
+
+```bash
+# west,south,east,north / day_range (1..5); today's UTC day counts as day 1
+curl 'https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/VIIRS_NOAA20_NRT/-9.5,36.0,-6.0,42.0/2'
+curl 'https://firms.modaps.eosdis.nasa.gov/api/data_availability/csv/[MAP_KEY]/ALL'
+```
+
+The response is **CSV only**, 14 columns:
+
+```
+latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+38.92123,-9.00895,319.19,0.39,0.36,2026-07-24,230,N20,VIIRS,n,2.0NRT,295.82,2.22,N
+```
+
+Things that matter when parsing it:
+
+- **`acq_time` is an unpadded integer HHMM** — `230` is 02:30, `48` would be 00:48. Event time is
+  `acq_date` + `acq_time`, always UTC.
+- **There is no unique detection id.** Identity is derived: a 12-hex hash of the **raw CSV
+  strings** `latitude,longitude,acq_date,acq_time,satellite` — raw text, never reparsed floats, so
+  it can't drift with float formatting. This is what makes the seen-set trustworthy.
+- **`confidence` is a letter for VIIRS** (`l`/`n`/`h`) but 0–100 for MODIS, so it is stored as a
+  string and never decoded.
+- **`bright_ti4` saturates at 367 K** and arrives as a bare integer, which is why every number is
+  wrapped in `float()` (the `FLOAT` codec rejects `int`).
+- **`frp`** (fire radiative power, MW) was populated on every one of the ~3 600 rows surveyed for
+  this example, and a genuine `0.0` does occur — so absence is decided by an empty field, never by
+  falsiness, and NULL stays distinct from 0.0 all the way into ClickHouse.
+- **Latency tiers.** NRT ≤ 3 h globally, RT ≤ 60 min for much of the world, URT < 60 s for the
+  US/Canada. All of them flow into the same `*_NRT` collections as they arrive — which is exactly
+  why re-polling the same day window keeps producing new rows for old times.
+- **Suomi NPP (`VIIRS_SNPP_NRT`) is deliberately excluded** because of the data anomaly NASA has
+  flagged since 2026-03-09, even though it currently serves data. `MODIS_NRT` and `LANDSAT_NRT`
+  exist too, with different column semantics; the `_SP` variants are the standard-processing
+  archive (backfill material, out of scope).
+- The **country API is currently unavailable**, so a bounding box is the only way to scope a
+  request — which suits us, since a config record carries one.
+
+## Getting a MAP_KEY (and why this example isn't keyless)
+
+The ingest stage needs a free NASA MAP_KEY, requested with an email address at
+<https://firms.modaps.eosdis.nasa.gov/api/map_key/> and issued instantly:
+
+```bash
+export FIRMS_MAP_KEY=<your key>
+curl 'https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY='"$FIRMS_MAP_KEY"
+# { "transaction_limit" : 5000, "current_transactions": 0, "transaction_interval" : "10 minutes" }
+```
+
+Every other example in this repo runs on keyless public data, and that streak is worth breaking
+only knowingly. Here is the reasoning:
+
+- **NASA's terms require it.** The quota (5000 transactions per 10-minute interval) is per key,
+  and the data carries an attribution requirement. An anonymous shared endpoint isn't on offer.
+- **A demo repo should show this once.** Real pipelines have credentials. Doing it properly —
+  the *ops caller* reads the environment and injects the key as a constructor argument, while the
+  stage never touches `os.environ` — demonstrates that the framework's no-env-magic rule and
+  real-world secrets are compatible. Getting that wrong (an env read buried in a stage) is a
+  common enough mistake to be worth one worked counter-example.
+- **The cost is bounded.** At the 5-minute poll interval, two GETs per region per poll, even 20
+  regions cost ~480 transactions per 10-minute window. Watch the `mapkey_status` endpoint above;
+  note that a *large* bounding box can be billed as several transactions, which is why
+  `request-wildfire` warns about boxes wider than 10° on a side.
+
+`FIRMS_MAP_KEY` is only needed by `run-wildfire-ingest`. `setup-wildfire` and `run-wildfire-tracker` work
+without it, and `request-wildfire` merely *uses* it, if present, to preview a region's live detection
+count.
+
+## Run it
+
+With the [stack](../../README.md#the-stack) up:
+
+```bash
+export FIRMS_MAP_KEY=<your key>
+uv run poe wildfire                     # setup (topics + schema) then run both stages
+uv run poe request-wildfire "Alentejo, Portugal"
+```
+
+or step by step:
+
+```bash
+uv run poe setup-wildfire                # topics + ClickHouse schema (nothing seeded)
+uv run poe request-wildfire "Attica, Greece"          # geocoded, validated, previewed
+uv run poe request-wildfire "My Valley" -8.9 36.9 -6.8 39.2   # or pin the bbox yourself
+uv run poe run-wildfire-ingest           # poll both VIIRS birds -> wildfire-detections
+uv run poe run-wildfire-tracker          # cluster detections    -> wildfire-status / wildfire-events
+```
+
+With **zero regions** both stages idle politely — nothing is seeded, because where to look is a
+human's choice and a default would spend NASA's quota on a place you don't care about. Pick
+somewhere that is actually burning (browse the [FIRMS
+map](https://firms.modaps.eosdis.nasa.gov/map/); in late July the Mediterranean rarely
+disappoints).
+
+`request-wildfire` geocodes the name **at request time and caches all four box edges in the config
+record**, so the record fully describes the region it asks for. It prints the resolved box before
+writing anything, because geocoding a place name is genuinely ambiguous — Nominatim returns one
+best guess, and a name backed by an OSM *node* rather than a boundary relation yields a synthetic
+±1° box. It also reads the compacted config topic and **warns when the new box overlaps a region
+you already watch**, naming the intersection:
+
+```
+Already watching 1 region(s):
+  alentejo-portugal        west=-8.9606 south=36.9551 east=-6.7606 north=39.1551
+
+  ⚠️  Overlaps 'alentejo-portugal': west=-7.6417 south=37.8410 east=-6.7606 north=39.1551 (0.88° × 1.31°).
+      A fire in there is tracked TWICE — one fire object per region …
+```
+
+That check is the reason the box is cached rather than resolved later: you cannot intersect
+geometry you don't have yet. Two consequences worth knowing. `ingest.enrich_config` becomes a
+**fallback** — it still geocodes a record that arrives without a box, which keeps a hand-produced
+`{"region": …, "name": …}` (from Kafbat) a first-class way to ask for a region. And a cached box is
+a **snapshot of a lookup**: change `PAD_DEG`, or wait for OSM boundaries to move, and existing
+regions keep the box they were created with — re-run the command to refresh one.
+
+With a key set it also prints the current detection count per satellite, the fastest way to tell a
+good watch region from a typo. Retire one with `uv run poe request-wildfire retire <slug>` (a
+compacted-topic tombstone).
+
+**What appears when.** Within one poll (~5 min) detections and a sweep land on
+`wildfire-detections`, and the tracker turns them into `ignition` events immediately. Status
+heartbeats appear on the *next* sweep after that — status is deliberately sweep-paced, not
+detection-paced. Rows show up in ClickHouse via the Kafka-engine views (`SELECT count() FROM
+flechtwerk.wildfire_detections`, `SELECT * FROM flechtwerk.wildfire_active FINAL`), and the **Wildfire
+Watch** dashboard plots the map, the FRP timeline, and the fire log. Browse the topics in [Kafbat
+UI](http://localhost:8080); a hand-produced `wildfire-regions` record works too.
+
+**Scaling out is free — with two caveats worth knowing.** A second ingest instance sharing the
+`wildfire-ingest` application id splits the config topic's 8 **extractor tokens** with the first
+(verified live: `Acquired tokens [0, 1, 2, 3]` and `[4, 5, 6, 7]`), and killing one hands its
+tokens back to the survivor. But the `run-wildfire-ingest` target hardcodes metrics port 9120 and
+`client_id`, so running it twice *on one host* dies with `Address already in use` — a second local
+instance needs its own port and client id (build it in a few lines with `examples._runner.run`,
+or pass `metrics_port=0`). And because ownership is by config-topic *partition*, a couple of
+regions can easily hash into one instance's token range and leave the other idle; the split shows
+up once you have more regions than that. The framework's built-in `{"suspended": true}` config
+switch works here too — set it on a region to park it without retiring it.
+
+## Caveats (read these)
+
+- **A detection is a 375 m pixel that contained fire — not "a fire", and not a fire's boundary.**
+  `scan`/`track` report how coarse each pixel is (they grow toward the swath edge). A cluster's
+  `detections` count measures *pixel sightings*, so the same fire seen by both satellites on two
+  passes counts twice; treat it as a size proxy, not an area.
+- **Clouds and smoke hide fires.** A gap in detections means the satellites didn't see it, which
+  is not the same as "it stopped burning".
+- **NRT latency is up to ~3 h**, and satellite revisit gaps at mid-latitudes are typically 4–6 h
+  (worst ~8 h). Nothing here is real-time.
+- **False extinctions happen, and they self-heal.** An unlucky revisit gap plus NRT lag can age
+  out a fire that is still burning; the next detection then founds a *new* fire with a new id.
+  The event log shows it plainly (an `extinguished` followed by an `ignition` in the same place).
+  This is preferred over a timeout long enough to never be wrong, which would leave dead fires on
+  the map for days.
+- **`LINK_KM` is the one knob that changes everything.** Raise it and distinct fires fuse; lower
+  it and one fire fragments into a cloud of short-lived objects. 2 km ≈ 5 VIIRS pixels is tuned to
+  bridge gaps *within* one fire without merging neighbours.
+- **Overlapping regions track the same fire twice — and the dashboard de-duplicates it.** A
+  region is a watch *scope*, and fire identity is *discovered* by the tracker rather than known
+  up front, which is precisely why the **region** is the partition key and not the fire. So a
+  blaze inside two overlapping boxes occupies two independent state buckets, produces two
+  detection streams, and gets two status rows. That is the honest cost of region-partitioned
+  discovery, and it is not something the pipeline can fix without a second, globally-keyed
+  reconciliation stage (out of scope here).
+
+  What saves the presentation layer is **determinism**: a `fire_id` is derived from its founding
+  detection, so both regions — polling the same FIRMS rows for the shared area, in the same
+  sorted order — name the fire *identically*. The dashboard therefore groups by `fire_id`:
+  "Active fires now" uses `uniqExact(fire_id)`, and the map and the largest-fires table collapse
+  duplicates into one row whose `regions` column names every region that sees it. Verified live
+  with two overlapping Iberian regions: 7 status rows, 5 distinct fires.
+
+  Two caveats on that trick. A `fire_id` is unique **per region, not globally** — ClickHouse keys
+  `(region, fire_id)` — and the collision is what the dedupe exploits, so don't "fix" it. And it
+  is a heuristic: if one box clips a fire so that its *earliest* pixel falls outside, that region
+  founds the fire from a different detection and gets a different id, which the grouping won't
+  merge. Prefer non-overlapping watch boxes if exact counts matter — `request-wildfire` warns you
+  at the moment you would create an overlap, with the intersection spelled out.
+- **Not for safety-of-life decisions.** This is a stream-processing demo over a science feed. For
+  anything that matters, follow your official emergency services and civil-protection authority
+  (in the EU, [112](https://ec.europa.eu/echo/); in the US,
+  [InciWeb](https://inciweb.wildfire.gov/) and local warnings).
+
+## Attribution
+
+We acknowledge the use of data from NASA's Fire Information for Resource Management System
+(FIRMS) (<https://earthdata.nasa.gov/firms>), part of NASA's Earth Science Data and Information
+System (ESDIS).
+
+Region geocoding uses [Nominatim](https://nominatim.org/) — data ©
+[OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, ODbL 1.0.
+
+## Extension points (deliberately not shipped)
+
+- **EONET enrichment** — joining fire clusters to NASA EONET's *named* events
+  ("Alexandroupolis Fire") via a second config-driven poller. The natural follow-up, and keyless.
+- **Phone alerts** — piping `wildfire-events` through the fermentation example's MQTT-bridge pattern
+  to ntfy or Pushover. The event stream is alert-shaped on purpose.
+- **Historical backfill** — the `_SP` standard-processing sources plus the endpoint's date
+  parameter would replay past fire seasons through the same pipeline. A lovely EOS-replay demo,
+  but it belongs to a dedicated reprocessing example.
+- **URT for the US/Canada** (<60 s latency) — same API, different tier.
+- **MODIS / Landsat sources** — more sensors, same shape; adds column-mapping noise without a new
+  framework lesson.
+- **Reverse-geocoding fires to admin regions** via ClickHouse polygon dictionaries — the ADS-B
+  example already teaches that, and reusing its dictionaries would couple the two.
+- **Encrypted MAP_KEY in the config record** — the framework ships a keyring/secrets facility
+  (`flechtwerk.secrets`, `keyring=` on `Flechtwerk.of`) that could carry the key as an encrypted
+  config attribute instead of an environment variable. No example uses it yet, and it deserves
+  its own.
+- **World-scale watch** (`world` as the bbox) — it works, but state sizing and quota accounting
+  change character. This example is regional by design.

@@ -35,9 +35,12 @@ published package, exercised exactly the way a consumer would use it.
 <p align="center">
   <a href="examples/odds_arbitrage_radar"><img src="assets/odds-grafana.png" width="49%" alt="Odds Arbitrage Radar — the live Grafana dashboard (net edge after fees per pair and direction, closest-to-free-money leaderboard, gross vs. net, per-venue YES asks, quote freshness)"></a>
   &nbsp;
+  <a href="examples/wildfire_watch"><img src="assets/wildfire-grafana.png" width="49%" alt="Wildfire Watch — the live Grafana dashboard (a world fire map with markers sized by detection count and coloured by radiative power, active-fire count, largest active fires, total FRP per region, the ignition/merge/extinction log, and a poll heartbeat)"></a>
+</p>
+<p align="center">
   <a href="grafana/dashboards/observability.json"><img src="assets/observability-grafana.png" width="49%" alt="Observability — the shared Grafana dashboard over the flechtwerk_* Prometheus metrics (active stages and configs, message throughput, processing latency, extractor poll cycles), filterable by example, stage, and client"></a>
 </p>
-<p align="center"><em>Five of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>, and <a href="examples/odds_arbitrage_radar">Odds Arbitrage Radar</a> — plus the shared <a href="grafana/dashboards/observability.json">Observability</a> dashboard watching every running stage.</em></p>
+<p align="center"><em>Six of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>, <a href="examples/odds_arbitrage_radar">Odds Arbitrage Radar</a>, and <a href="examples/wildfire_watch">Wildfire Watch</a> — plus the shared <a href="grafana/dashboards/observability.json">Observability</a> dashboard watching every running stage.</em></p>
 
 ## What's Inside
 
@@ -54,6 +57,7 @@ scenario under `examples/`:
 | 6 | [`gtfs_german_rail_delays`](examples/gtfs_german_rail_delays) | a **binary (protobuf) source decoded at the edge** (Germany's GTFS-Realtime feed), a stream⋈**static-dimension** join (live delays ⋈ the schedule, co-partitioned by `trip_id` via a compacted profile topic), and a self-healing snapshot source — a live German long-distance rail **delay** monitor | `gtfs` |
 | 7 | [`smard_german_electricity_market`](examples/smard_german_electricity_market) | **late data / revisions**: a resume-cursor `Extractor` that diffs each snapshot against a 48 h window to re-emit *corrections*, **stream-time punctuation** (the poller emits `settled` markers the transformer turns into a preliminary→final lifecycle + state tombstone), and a co-partitioned join whose key is **time** — Germany's live electricity generation mix, load, and day-ahead prices from Bundesnetzagentur SMARD.de | `smard` |
 | 8 | [`odds_arbitrage_radar`](examples/odds_arbitrage_radar) | **N-source fan-in + event-time staleness**: two *independent* extractors sharing one config topic, each polling a different venue into one pair-keyed quote stream, merged by a transformer into a per-pair best-price state that flags **cross-venue arbitrage** — live Polymarket × Kalshi prediction-market odds, with a fresh net-positive edge (after fees) as the signal. Read-only, keyless public data | `odds` |
+| 9 | [`wildfire_watch`](examples/wildfire_watch) | **spatiotemporal sessionization + bounded event-time dedupe**: NASA FIRMS satellite fire detections clustered into persistent fire objects in keyed state (ignition → growth → merge → extinction by event-time timeout, with `sweep` markers as the transformer's only clock), and a pruned, hard-capped seen-set standing in for a cursor the source doesn't have — a live wildfire map from VIIRS. Free NASA `FIRMS_MAP_KEY` required (the repo's first) | `wildfire` |
 
 Each example is self-contained under its own directory with its own README.
 
@@ -106,9 +110,12 @@ velocity, top stories, a tone-coloured world map, coverage spread),
 punctuality, most-delayed trains, a network-delay timeseries), **SMARD German
 Electricity Market** (the generation mix by source, day-ahead price into tomorrow,
 renewables share and CO₂ intensity, and a live corrections feed of revised values),
-and **Odds Arbitrage Radar** (the net edge after fees per pair and direction, a
+**Odds Arbitrage Radar** (the net edge after fees per pair and direction, a
 closest-to-free-money leaderboard, gross vs. net, the two venues' YES asks, signals,
-and quote freshness).
+and quote freshness), and **Wildfire Watch** (a fire map with markers sized by
+detection count and coloured by radiative power over the raw hotspot pixels, total
+FRP per region, the largest active fires, the ignition/merge/extinction log, and a
+poll-heartbeat panel that distinguishes "nothing burning" from "poller stopped").
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
@@ -116,7 +123,8 @@ boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
 GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader, `9115`
 SMARD ingest + `9116` SMARD mix, `9117` odds Polymarket + `9118` odds Kalshi + `9119`
-odds radar; the chaos harness runs metrics-off);
+odds radar, `9120` wildfire ingest + `9121` wildfire tracker; the chaos harness runs
+metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
