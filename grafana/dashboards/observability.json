@@ -1,7 +1,7 @@
 {
   "uid": "flechtwerk-observability",
   "title": "Flechtwerk — Observability",
-  "description": "Flechtwerk framework metrics across all example stages: throughput, latency, extractor poll cycles, MQTT, config store, transformer tasks & state restore, process health. Local adaptation of the production Flechtwerk Observability dashboard.",
+  "description": "Flechtwerk framework metrics across all example stages: throughput, record sizes vs the ~1 MiB ceiling, latency, extractor poll cycles, MQTT, config store, transformer tasks & state restore, process health. Local adaptation of the production Flechtwerk Observability dashboard.",
   "tags": [
     "flechtwerk"
   ],
@@ -145,7 +145,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
+        "w": 3,
         "x": 0,
         "y": 1
       },
@@ -208,8 +208,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 4,
+        "w": 3,
+        "x": 3,
         "y": 1
       },
       "id": 2,
@@ -271,8 +271,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 8,
+        "w": 3,
+        "x": 6,
         "y": 1
       },
       "id": 27,
@@ -334,8 +334,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 12,
+        "w": 3,
+        "x": 9,
         "y": 1
       },
       "id": 28,
@@ -397,8 +397,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 16,
+        "w": 3,
+        "x": 12,
         "y": 1
       },
       "id": 3,
@@ -468,8 +468,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 20,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
       "id": 4,
@@ -504,6 +504,77 @@
         }
       ],
       "title": "Poll Cycles / sec",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Largest state changelog record any selected stage has written since its process start — the high-water mark against the ~1 MiB record ceiling (aiokafka max_request_size / the broker's max.message.bytes). Red means a stage is one growth spurt away from crashing. See the Record Sizes row.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 524288
+              },
+              {
+                "color": "red",
+                "value": 917504
+              }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      },
+      "id": 51,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(flechtwerk_state_record_max_bytes{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"})",
+          "instant": true,
+          "legendFormat": "bytes",
+          "refId": "A"
+        }
+      ],
+      "title": "Largest state record",
       "type": "stat"
     },
     {
@@ -726,6 +797,458 @@
         "x": 0,
         "y": 14
       },
+      "id": 46,
+      "title": "Record Sizes",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Largest state changelog record written since each process started (it resets on restart, and re-establishes itself within minutes because state buckets are rewritten whole on every commit). The ceiling is aiokafka's max_request_size and the broker's max.message.bytes, both ~1 MiB by default: a stage whose per-key state crosses the red line crashes by design rather than silently dropping data — bound the bucket instead.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 786432
+              },
+              {
+                "color": "red",
+                "value": 1048576
+              }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 47,
+      "options": {
+        "annotations": {
+          "clustering": -1,
+          "multiLane": false
+        },
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (client_id) (flechtwerk_state_record_max_bytes{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"})",
+          "legendFormat": "{{client_id}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "State record size — high-water mark vs the 1 MiB ceiling",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Largest produced record (key + value) since process start, per output topic. One oversized message kills the producer exactly like one oversized state record, and against the same ~1 MiB ceiling — this is where a fan-out that batches too much per key shows up first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 786432
+              },
+              {
+                "color": "red",
+                "value": 1048576
+              }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 48,
+      "options": {
+        "annotations": {
+          "clustering": -1,
+          "multiLane": false
+        },
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (client_id, topic) (flechtwerk_message_out_max_bytes{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"})",
+          "legendFormat": "{{client_id}} → {{topic}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Message size out — high-water mark by topic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Count of records that landed above the 512 KiB bucket boundary in the last 10 minutes (total minus the le=524288 bucket). Even a single outlier shows here, which is the one thing the quantile panels cannot say. increase() extrapolates, so read a value near 1 as \"at least one\".",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "id": 49,
+      "options": {
+        "annotations": {
+          "clustering": -1,
+          "multiLane": false
+        },
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (client_id) (increase(flechtwerk_state_record_bytes_count{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[10m])) - sum by (client_id) (increase(flechtwerk_state_record_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\", le=\"524288.0\"}[10m]))",
+          "legendFormat": "state · {{client_id}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (client_id, topic) (increase(flechtwerk_message_out_bytes_count{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[10m])) - sum by (client_id, topic) (increase(flechtwerk_message_out_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\", le=\"524288.0\"}[10m]))",
+          "legendFormat": "out · {{client_id}} → {{topic}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Records over 512 KiB — state + messages out (10m increase)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Typical consumed-record size per input topic, over a 1-hour window — wide on purpose: several examples emit in bursts (SMARD ships one diff per 15-minute data update), and a 5-minute window leaves the panel blank between them, while sizes themselves drift slowly. Both values are bucket-interpolated — the ladder is deliberately coarse through the middle, so a quantile can sit far from any real observation and never exceeds the largest finite bound. For exact statements use the high-water-mark gauges or the over-512-KiB panel; read these two as shape, not fact.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 50,
+      "options": {
+        "annotations": {
+          "clustering": -1,
+          "multiLane": false
+        },
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
+          "legendFormat": "p50 {{client_id}} ← {{topic}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
+          "legendFormat": "p95 {{client_id}} ← {{topic}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Message size in — p50 / p95 by topic",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
       "id": 40,
       "title": "Latency",
       "type": "row"
@@ -792,7 +1315,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 32
       },
       "id": 7,
       "options": {
@@ -892,7 +1415,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 32
       },
       "id": 8,
       "options": {
@@ -937,7 +1460,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 40
       },
       "id": 41,
       "title": "Extractors",
@@ -1004,7 +1527,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 24
+        "y": 41
       },
       "id": 9,
       "options": {
@@ -1103,7 +1626,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 24
+        "y": 41
       },
       "id": 10,
       "options": {
@@ -1204,7 +1727,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 24
+        "y": 41
       },
       "id": 37,
       "options": {
@@ -1248,7 +1771,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 49
       },
       "id": 42,
       "panels": [
@@ -1284,7 +1807,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 33
+            "y": 50
           },
           "id": 16,
           "options": {
@@ -1352,7 +1875,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 33
+            "y": 50
           },
           "id": 17,
           "options": {
@@ -1419,7 +1942,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 33
+            "y": 50
           },
           "id": 18,
           "options": {
@@ -1549,7 +2072,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 37
+            "y": 54
           },
           "id": 19,
           "options": {
@@ -1660,7 +2183,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 37
+            "y": 54
           },
           "id": 21,
           "options": {
@@ -1708,7 +2231,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 50
       },
       "id": 43,
       "title": "Config Store",
@@ -1776,7 +2299,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 34
+        "y": 51
       },
       "id": 22,
       "options": {
@@ -1876,7 +2399,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 34
+        "y": 51
       },
       "id": 23,
       "options": {
@@ -1976,7 +2499,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 34
+        "y": 51
       },
       "id": 24,
       "options": {
@@ -2020,7 +2543,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 59
       },
       "id": 44,
       "title": "Transformers",
@@ -2076,7 +2599,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 60
       },
       "id": 11,
       "options": {
@@ -2161,7 +2684,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 60
       },
       "id": 12,
       "options": {
@@ -2267,7 +2790,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 68
       },
       "id": 25,
       "options": {
@@ -2367,7 +2890,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 68
       },
       "id": 26,
       "options": {
@@ -2411,7 +2934,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 76
       },
       "id": 45,
       "title": "Process",
@@ -2468,7 +2991,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 60
+        "y": 77
       },
       "id": 13,
       "options": {
@@ -2553,7 +3076,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 60
+        "y": 77
       },
       "id": 14,
       "options": {
@@ -2638,7 +3161,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 60
+        "y": 77
       },
       "id": 15,
       "options": {

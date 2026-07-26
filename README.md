@@ -4,7 +4,7 @@
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
   <a href="https://bsure-analytics.github.io/flechtwerk/"><img src="https://img.shields.io/badge/docs-online-6d2530" alt="Documentation"></a>
   <a href="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml"><img src="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/flechtwerk/0.7.5/"><img src="https://img.shields.io/badge/flechtwerk-0.7.5-6d2530" alt="Pinned flechtwerk version"></a>
+  <a href="https://pypi.org/project/flechtwerk/0.7.6/"><img src="https://img.shields.io/badge/flechtwerk-0.7.6-6d2530" alt="Pinned flechtwerk version"></a>
   <img src="https://img.shields.io/badge/python-3.14-blue.svg" alt="Python 3.14">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
@@ -38,7 +38,7 @@ published package, exercised exactly the way a consumer would use it.
   <a href="examples/wildfire_watch"><img src="assets/wildfire-grafana.png" width="49%" alt="Wildfire Watch — the live Grafana dashboard (a world fire map with markers sized by detection count and coloured by radiative power, active-fire count, largest active fires, total FRP per region, the ignition/merge/extinction log, and a poll heartbeat)"></a>
 </p>
 <p align="center">
-  <a href="grafana/dashboards/observability.json"><img src="assets/observability-grafana.png" width="49%" alt="Observability — the shared Grafana dashboard over the flechtwerk_* Prometheus metrics (active stages and configs, message throughput, processing latency, extractor poll cycles), filterable by example, stage, and client"></a>
+  <a href="grafana/dashboards/observability.json"><img src="assets/observability-grafana.png" width="49%" alt="Observability — the shared Grafana dashboard over the flechtwerk_* Prometheus metrics (active stages and configs, message throughput, record and state sizes against the ~1 MiB record ceiling, processing latency, extractor poll cycles), filterable by example, stage, and client"></a>
 </p>
 <p align="center"><em>Six of the examples, live in Grafana — <a href="examples/adsb_flight_tracker">ADS-B Flight Tracker</a>, <a href="examples/gdelt_news_stories">GDELT News Stories</a>, <a href="examples/gtfs_german_rail_delays">GTFS German Rail Delays</a>, <a href="examples/smard_german_electricity_market">SMARD German Electricity Market</a>, <a href="examples/odds_arbitrage_radar">Odds Arbitrage Radar</a>, and <a href="examples/wildfire_watch">Wildfire Watch</a> — plus the shared <a href="grafana/dashboards/observability.json">Observability</a> dashboard watching every running stage.</em></p>
 
@@ -98,8 +98,9 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 | Grafana | <http://localhost:3000> | provisioned dashboards (anonymous access) |
 
 Grafana provisions dashboards tagged `flechtwerk`: **Observability** (the
-`flechtwerk_*` Prometheus metrics — throughput, latency, extractor poll cycles,
-MQTT, config store, transformer tasks & state restore, process health —
+`flechtwerk_*` Prometheus metrics — throughput, record and state sizes against
+the ~1 MiB record ceiling, latency, extractor poll cycles, MQTT, config store,
+transformer tasks & state restore, process health —
 filterable by example, stage, and client), **Stream Data**
 (a ClickHouse datasource smoke test), and per-example dashboards — **ADS-B Flight
 Tracker** (a live map + enriched table), **ADS-B Aviation Events**
@@ -161,7 +162,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.7.5`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.7.6`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.

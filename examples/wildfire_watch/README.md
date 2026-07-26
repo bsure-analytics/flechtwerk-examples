@@ -247,7 +247,10 @@ seen-set would be ~6 MB, and the worst single 10° cell on Earth (the Angola–Z
 belt, measured 2026-07-26) clusters 27 k detections/day into a 1.9 MB fire bucket all by
 itself. The first attempt at "France" — whose Nominatim box happens to span the whole Republic,
 Kerguelen to Polynesia — crashlooped both stages exactly this way, which is why `request-wildfire`
-now refuses boxes wider than 60°.
+now refuses boxes wider than 60°. Since `flechtwerk` 0.7.6 the approach to that ceiling no longer
+has to be derived from the caps' arithmetic: the shared **Observability** dashboard's *Record
+Sizes* row charts `flechtwerk_state_record_max_bytes` against the 1 MiB line, so a tile growing
+toward it is visible on a panel while it is still healthy.
 
 The architecture's own answer is the right one: **the world is just many ordinary regions.**
 `world` tiles the planet into a few hundred normal config records (slugs `world-*`), and the
