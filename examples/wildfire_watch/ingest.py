@@ -106,7 +106,8 @@ the line and burn in. The pad is generous enough to catch that and small enough 
 a neighbouring region."""
 
 SEEN_HARD_CAP = 20_000
-"""Maximum detection ids kept in the seen-set before whole oldest date buckets are dropped.
+"""Maximum detection ids kept in the seen-set — enforced unconditionally by :func:`prune_seen`
+(whole oldest date buckets go first, then the oldest ids inside the last bucket).
 
 Each ``State`` is ONE changelog record and must stay well under the broker's ~1 MB
 ``max.message.bytes`` — the lesson GDELT's clustering bucket taught the hard way, promoted here
@@ -220,9 +221,13 @@ def prune_seen(seen: dict[str, list[str]], max_date: date, *,
       ids can never be needed. The window is kept one day wider than ``day_range`` as grace, so
       a detection sitting right at the UTC midnight rollover isn't re-emitted.
     * **Hard cap.** If the surviving ids still exceed ``hard_cap``, whole oldest date buckets go
-      until the total fits, with a WARNING naming what was dropped. This is the guard that keeps
-      each State under the broker's record limit no matter how violent a fire day gets; the cost
-      of hitting it is re-emitting some older detections, not a stuck stage.
+      first; if the one remaining bucket is *itself* over the cap (a violent day over a huge
+      region), its oldest ids are trimmed until it fits — the newest win, and a WARNING names
+      what went. The cap is unconditional because each State is ONE changelog record with a hard
+      byte ceiling: a watch box over metropolitan France once produced a single 52 000-id day
+      bucket that whole-bucket drops could not touch, and the oversized record crashlooped the
+      stage. The cost of the cap biting is re-emitting some older detections (a duplicate
+      re-joins its fire downstream — untidy but harmless), never a stuck or crashing stage.
     """
     cutoff = (max_date - timedelta(days=day_range)).isoformat()
     pruned = {day: ids for day, ids in seen.items() if day >= cutoff}
@@ -232,11 +237,20 @@ def prune_seen(seen: dict[str, list[str]], max_date: date, *,
         oldest = min(pruned)
         total -= len(pruned.pop(oldest))
         dropped.append(oldest)
-    if dropped:
+    trimmed = 0
+    if total > hard_cap:  # exactly one bucket left, and it alone busts the cap
+        (day, ids), = pruned.items()
+        trimmed = total - hard_cap
+        pruned[day] = ids[trimmed:]
+        total = hard_cap
+    if dropped or trimmed:
+        went = [f"dropped date bucket(s) {', '.join(dropped)}"] if dropped else []
+        if trimmed:
+            went.append(f"trimmed the {trimmed} oldest id(s) from the remaining bucket")
         log.warning(
-            "seen-set over the %d-id cap: dropped date bucket(s) %s; %d ids kept. Detections "
-            "from the dropped day(s) may be re-emitted (harmless: a duplicate re-joins its fire)",
-            hard_cap, ", ".join(dropped), total)
+            "seen-set over the %d-id cap: %s; %d ids kept. Affected detections may be "
+            "re-emitted (harmless: a duplicate re-joins its fire)",
+            hard_cap, "; ".join(went), total)
     return pruned
 
 

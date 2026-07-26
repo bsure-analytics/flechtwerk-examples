@@ -14,7 +14,7 @@ source gives you no ids, no cursor, and no clock?*
 <p align="center">
   <img src="../../assets/wildfire-grafana.png" width="100%" alt="The Wildfire Watch Grafana dashboard — a world fire map with markers sized by detection count and coloured by radiative power, the active-fire count, the largest active fires ranked by detections, total FRP per region, the ignition/merge/extinction log, and a poll-heartbeat table">
 </p>
-<p align="center"><em>Live in Grafana, watching two Iberian regions during the 2026 fire season: a 1386-detection fire complex in Extremadura peaking at 506 MW, the largest active fires ranked by absorbed pixels, the sweep-paced FRP timeline, the lifecycle log, and the poll heartbeat that tells "nothing burning" apart from "poller stopped". The map opens world-scale on purpose — a watch region can be anywhere — so zoom to yours.</em></p>
+<p align="center"><em>Live in Grafana, running the <a href="#the-world-watch">world watch</a> during the 2026 fire season: ~22 000 active fires tracked planet-wide, the largest named by their <code>world-*</code> tiles, and — in the tooltip — a ~2 000-detection fire in the Landes forest south of Bordeaux carrying two region labels (<code>world-w010n40, gironde-france</code>) collapsed into one row by the dashboard's <code>fire_id</code> de-duplication. The heartbeat panel is doing exactly its job: the named region's poller had just been stopped (red, 28 min), while the world tiles sweep on.</em></p>
 
 ```mermaid
 flowchart LR
@@ -169,6 +169,7 @@ or step by step:
 uv run poe setup-wildfire                # topics + ClickHouse schema (nothing seeded)
 uv run poe request-wildfire "Attica, Greece"          # geocoded, validated, previewed
 uv run poe request-wildfire "My Valley" -8.9 36.9 -6.8 39.2   # or pin the bbox yourself
+uv run poe request-wildfire world        # or watch the whole planet (see "The world watch")
 uv run poe run-wildfire-ingest           # poll both VIIRS birds -> wildfire-detections
 uv run poe run-wildfire-tracker          # cluster detections    -> wildfire-status / wildfire-events
 ```
@@ -180,11 +181,18 @@ map](https://firms.modaps.eosdis.nasa.gov/map/); in late July the Mediterranean 
 disappoints).
 
 `request-wildfire` geocodes the name **at request time and caches all four box edges in the config
-record**, so the record fully describes the region it asks for. It prints the resolved box before
-writing anything, because geocoding a place name is genuinely ambiguous — Nominatim returns one
-best guess, and a name backed by an OSM *node* rather than a boundary relation yields a synthetic
-±1° box. It also reads the compacted config topic and **warns when the new box overlaps a region
-you already watch**, naming the intersection:
+record**, so the record fully describes the region it asks for. It prints the resolved box **and
+what the name actually matched** (Nominatim's `display_name` + `addresstype`) before writing
+anything, because geocoding a place name is genuinely ambiguous — Nominatim returns one best
+guess, a name backed by an OSM *node* rather than a boundary relation yields a synthetic ±1° box,
+and two traps found the hard way are worth naming: the typo `"Bordeux, France"` silently matches
+*Rue Robert Bordeux*, a street in Picardy (`— road` in the match line is the tell), and a country
+name resolves to its whole OSM relation — "France" spans Kerguelen to French Polynesia, because
+the Republic does. A box wider than 10° on a side gets a warning; wider than **60° is refused**,
+because a single region that size cannot survive the per-key state records (each is one ~1 MB
+changelog record — see the world watch below for the right way to ask for "everything"). It also
+reads the compacted config topic and **warns when the new box overlaps a region you already
+watch**, naming the intersection:
 
 ```
 Already watching 1 region(s):
@@ -224,6 +232,70 @@ regions can easily hash into one instance's token range and leave the other idle
 up once you have more regions than that. The framework's built-in `{"suspended": true}` config
 switch works here too — set it on a region to park it without retiring it.
 
+## The world watch
+
+```bash
+uv run poe request-wildfire world          # tile the planet, write every tile as a region
+uv run poe request-wildfire retire world   # tombstone all of them
+```
+
+Watching the entire planet with **one** region cannot work, and the reason is the pair of
+records this example is built around: a region's dedupe seen-set and its fire bucket are each
+**one changelog record** with a hard ~1 MB ceiling (the Kafka client's `max_request_size`).
+The planet currently produces ~215 k VIIRS detections a day across the two birds — a world
+seen-set would be ~6 MB, and the worst single 10° cell on Earth (the Angola–Zambia savanna
+belt, measured 2026-07-26) clusters 27 k detections/day into a 1.9 MB fire bucket all by
+itself. The first attempt at "France" — whose Nominatim box happens to span the whole Republic,
+Kerguelen to Polynesia — crashlooped both stages exactly this way, which is why `request-wildfire`
+now refuses boxes wider than 60°.
+
+The architecture's own answer is the right one: **the world is just many ordinary regions.**
+`world` tiles the planet into a few hundred normal config records (slugs `world-*`), and the
+stages never learn the word "world" — state, clustering cost, and fire identity all shard per
+tile, and a second `run-wildfire-ingest` instance splits the planet by config partition for
+free. Three design points:
+
+- **The grid is adaptive.** A 10° base grid covers all land (267 cells, Natural Earth 110 m,
+  nothing south of 60°S — Antarctica doesn't burn); any cell that the **live public 24 h
+  snapshot** (the keyless `J1/J2_VIIRS_C2_Global_24h.csv` files — tiling spends none of your
+  quota) shows above ~6 k detections splits quadtree-style down to 1.25°, every quadrant kept
+  because a fire can ignite where there was nothing. Offshore cells with detections (gas
+  flares) join the base set automatically. Today that lands at ~340 tiles, most of them the
+  quiet 10° kind.
+- **The tiling is a snapshot of a lookup**, exactly like a geocoded box cached in a config
+  record. The burn belt moves with the seasons; re-run `request-wildfire world` to re-tile —
+  it writes the new set and tombstones tiles that fell out of it. A stale tiling degrades
+  politely, never fatally: an over-hot tile trims its seen-set (bounded re-emission, warned)
+  and force-extinguishes its stalest fires past `MAX_FIRES` (id churn that self-heals like any
+  false extinction, warned) — both caps exist precisely so the worst day on Earth costs
+  accuracy in one tile rather than a crashloop.
+- **Count your quota.** ~340 tiles × 2 satellites ≈ 680 requests per poll round, and FIRMS
+  bills an area request as *several* transactions — **measured 2026-07-26: ~4 per request for
+  this tiling, ≈ 2 700 transactions per round**. A round of sequential GETs takes ~6 minutes,
+  so one instance rides at ~85 % of the default 5 000-per-10-minutes quota: it fits, with
+  little to spare. Two things follow. Check
+  `https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=<your key>` after
+  your first round rather than trusting these numbers to hold. And the scale-out story
+  changes at world size: a **second ingest instance on the same key would double the
+  transaction rate and trip the quota** — the bottleneck is NASA's meter, not your CPU, so
+  scaling out needs a second key (one per instance) rather than a second process. The status
+  stream also gets loud at world scale — one snapshot per active fire per sweep is tens of
+  thousands of rows per round during the fire season (the first live round tracked ~19 000
+  active fires worldwide).
+
+A fire straddling a tile border is tracked once per tile (the overlap caveat below, in
+edge-touching form) — the honest cost of region-partitioned discovery, unchanged.
+
+**Run the world watch supervised.** The stages keep the framework's let-it-crash rule — no
+in-process retry — and at ~700 GETs per round, one FIRMS response hanging past the 60 s HTTP
+timeout is a matter of *when*, not if (the first live world round died exactly this way, at
+GET ~560, leaving rectangular holes over the Zambian savanna where the round's tail never got
+its first poll — a quiet tile without even a sweep is the tell). `uv run poe wildfire` already
+wraps both stages in a restart-on-10s loop; a bare `run-wildfire-ingest` is for a terminal
+where you *watch* it. A restart is cheap on Kafka (the seen-set restores, so re-polls re-emit
+nothing) but re-spends the round's transactions, so back-to-back restarts can brush the quota
+until a 10-minute window resets — that is the recovery working, not failing.
+
 ## Caveats (read these)
 
 - **A detection is a 375 m pixel that contained fire — not "a fire", and not a fire's boundary.**
@@ -239,6 +311,12 @@ switch works here too — set it on a region to park it without retiring it.
   The event log shows it plainly (an `extinguished` followed by an `ignition` in the same place).
   This is preferred over a timeout long enough to never be wrong, which would leave dead fires on
   the map for days.
+- **A bucket past `MAX_FIRES` (2 000) force-extinguishes its stalest fires.** The whole
+  per-region fire dict is one changelog record, so it carries a hard cap the same way the
+  seen-set does. In a sanely sized region it never binds — a violent Iberian fire day runs
+  tens of fires — but the hottest world tiles can hit it, and the degradation is the same
+  self-healing one as a false extinction: the evicted fire's next detection re-founds it
+  under a new id, with a WARNING in the tracker log.
 - **`LINK_KM` is the one knob that changes everything.** Raise it and distinct fires fuse; lower
   it and one fire fragments into a cloud of short-lived objects. 2 km ≈ 5 VIIRS pixels is tuned to
   bridge gaps *within* one fire without merging neighbours.
@@ -295,5 +373,7 @@ Region geocoding uses [Nominatim](https://nominatim.org/) — data ©
   (`flechtwerk.secrets`, `keyring=` on `Flechtwerk.of`) that could carry the key as an encrypted
   config attribute instead of an environment variable. No example uses it yet, and it deserves
   its own.
-- **World-scale watch** (`world` as the bbox) — it works, but state sizing and quota accounting
-  change character. This example is regional by design.
+- **Dynamic re-tiling of the world watch** — an ops cron re-running `request-wildfire world`
+  as the burn belt moves, rather than the operator doing it. The mechanism (re-tile, diff,
+  tombstone) already exists; only the scheduling is missing, and it belongs to ops, not to a
+  stage.

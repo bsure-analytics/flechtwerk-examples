@@ -22,7 +22,7 @@ This is a deliberate **copy** of ADS-B's ``NominatimGeocoder`` shape rather than
 examples stay self-contained (only ``clickhouse_sink`` reaches into another example, and that
 is a wire-schema coupling, not code reuse).
 """
-from typing import Final, Protocol
+from typing import Final, NamedTuple, Protocol
 
 import httpx
 from flechtwerk.attribute import Attribute, LIST, STR
@@ -43,6 +43,29 @@ Declared here, at the edge that reads it, rather than in ``attributes.py``: that
 *our* schema, and this is one field of a **foreign** response we project into ours immediately.
 Wrapping the hit in a ``Record`` keeps the house rule that no naive dict travels past an HTTP
 boundary."""
+
+DISPLAY_NAME: Final = Attribute("display_name", STR)
+"""Nominatim's full human-readable name for the hit — what the query *actually* matched.
+Surfaced so ``request.py`` can show it: ``"Bordeux, France"`` (a typo) matches *"Rue Robert
+Bordeux, Pont-Remy, …"* — a street in Picardy — and only this field makes that visible before a
+watch region is written for it."""
+
+ADDRESS_TYPE: Final = Attribute("addresstype", STR, optional=True)
+"""Nominatim's classification of the hit (``country`` / ``county`` / ``road`` / …) — the second
+half of the sanity check: a ``road`` where a region was meant, or a ``country`` whose boundary
+spans overseas territories, both announce themselves here."""
+
+
+class Match(NamedTuple):
+    """One Nominatim hit, reduced to what the callers read: the box, plus enough identity
+    (``display_name``, ``addresstype``) for a human to see what the query really resolved to."""
+
+    south: float
+    north: float
+    west: float
+    east: float
+    display_name: str
+    addresstype: str
 
 
 class Geocoder(Protocol):
@@ -70,8 +93,8 @@ class NominatimGeocoder:
         )
         self.search_url = search_url or self.SEARCH_URL
 
-    async def bbox(self, query: str) -> tuple[float, float, float, float]:
-        """The best Nominatim hit's bounding box as ``(south, north, west, east)`` floats.
+    async def resolve(self, query: str) -> Match:
+        """The best Nominatim hit as a :class:`Match` — box plus what actually matched.
 
         ``limit=1`` asks for only the top match — the geocoder does not try to disambiguate,
         which is why ``request.py`` shows the operator what it resolved to before anything is
@@ -84,8 +107,16 @@ class NominatimGeocoder:
         results = response.json()
         if not results:
             raise LookupError(f"Nominatim found no match for region {query!r}")
-        south, north, west, east = Record.wrap(results[0])[BOUNDING_BOX]
-        return float(south), float(north), float(west), float(east)
+        hit = Record.wrap(results[0])
+        south, north, west, east = hit[BOUNDING_BOX]
+        return Match(float(south), float(north), float(west), float(east),
+                     hit[DISPLAY_NAME], hit.get(ADDRESS_TYPE) or "")
+
+    async def bbox(self, query: str) -> tuple[float, float, float, float]:
+        """The :class:`Geocoder`-protocol view of :meth:`resolve` — just the box, in
+        ``(south, north, west, east)`` order. What ``ingest.enrich_config`` consumes."""
+        match = await self.resolve(query)
+        return match.south, match.north, match.west, match.east
 
     async def aclose(self) -> None:  # pragma: no cover — live path
         await self._client.aclose()

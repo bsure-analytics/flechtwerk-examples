@@ -11,7 +11,8 @@ delivering *older* pixels for up to ~3 h. Turning that into something a human re
 * **merge** — a detection that links to *several* fires reveals they were one blaze all along,
   so they fold into a single survivor;
 * **extinction** — a fire nothing has been seen of for :data:`EXTINGUISH_AFTER` of **event
-  time** is declared out and leaves the state.
+  time** is declared out and leaves the state — or, past :data:`MAX_FIRES`, is *forced* out
+  stalest-first, because the whole bucket is one changelog record with a hard byte ceiling.
 
 That is a **session window** — entities born, grown, and killed by timeout — in space as well
 as time. GDELT clusters text into stories by cosine similarity; this is the same shape with
@@ -213,3 +214,29 @@ def expired(fire: dict, sweep_at: datetime, ttl: timedelta = EXTINGUISH_AFTER) -
     this never reads a clock and the logic tier can drive extinction by simply choosing a later
     sweep."""
     return sweep_at - fire[F_LAST_SEEN] > ttl
+
+
+MAX_FIRES = 2_000
+"""Most fires one region's bucket may hold before the stalest are forced out.
+
+The bucket is ONE changelog record under the same ~1 MB ceiling as the ingest seen-set, and a
+fire entry measures ~322 bytes of JSON (live savanna data, 2026-07-26), so 2 000 fires ≈ 650 KB
+with real headroom. The number is deliberately far above anything a sane watch region produces —
+a violent Iberian fire day runs tens of fires, and the world tiling splits cells so a tile stays
+under ~1.5 k — but the *worst* 10° cell on Earth clusters 6 000+ fires from a single day, and
+before this cap existed such a bucket crashlooped the stage. Forced extinction degrades exactly
+like the documented false extinction (the next detection re-founds the fire under a new id), so
+overflow costs id churn in the hottest tile, never a crash."""
+
+
+def evict_stalest(fires: dict[str, dict], cap: int = MAX_FIRES) -> tuple[dict[str, dict], dict[str, dict]]:
+    """``(kept, evicted)`` — the bucket bounded to ``cap`` by forced extinction, pure.
+
+    Victims are the stalest fires (oldest ``last_seen``, id tie-break — the same determinism
+    rules as everything else here), which are also the ones the timeout would have retired
+    first anyway. Under the cap this is the identity: the common case costs one length check."""
+    if len(fires) <= cap:
+        return fires, {}
+    victims = dict(sorted(fires.items(),
+                          key=lambda item: (item[1][F_LAST_SEEN], item[0]))[:len(fires) - cap])
+    return {fire_id: fire for fire_id, fire in fires.items() if fire_id not in victims}, victims

@@ -313,6 +313,18 @@ async def test_enrich_config_returns_a_complete_config_untouched() -> None:
     assert paths == []
 
 
+async def test_geocoder_resolve_reports_what_matched() -> None:
+    # The identity request.py surfaces before writing anything — the line that tells a typo's
+    # street or an overseas-spanning country from the region the operator meant.
+    client = httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, json=NOMINATIM_HIT)))
+    match = await NominatimGeocoder(client=client, search_url=NOMINATIM_SEARCH).resolve(REGION_NAME)
+    assert match.display_name == "Região do Alentejo, Beja, 7800-246, Portugal"
+    assert match.addresstype == "region"
+    assert (match.south, match.north) == (37.0551003, 39.0551003)
+    assert (match.west, match.east) == (-8.8605799, -6.8605799)
+
+
 async def test_enrich_config_raises_on_a_name_that_matches_nothing() -> None:
     clock, paths = {"date": _T}, []
     bodies = {source: HEADER_ONLY for source in SOURCES}

@@ -105,7 +105,7 @@ run-odds-polymarket = { cmd = "python -m examples.odds_arbitrage_radar polymarke
 run-odds-kalshi = { cmd = "python -m examples.odds_arbitrage_radar kalshi", help = "Run odds stage 1b: poll Kalshi markets -> odds-quotes" }
 run-odds-radar = { cmd = "python -m examples.odds_arbitrage_radar radar", help = "Run odds stage 2: fan-in both venues' quotes -> odds-margins / odds-signals" }
 setup-wildfire = { cmd = "python -m examples.wildfire_watch.setup", help = "Create the Wildfire Watch topics and apply the ClickHouse schema (no region seeded — use request-wildfire)" }
-request-wildfire = { cmd = "python -m examples.wildfire_watch.request", help = "Validate + request a region to watch: uv run poe request-wildfire \"Attica, Greece\" [west south east north] (or: retire <slug>)" }
+request-wildfire = { cmd = "python -m examples.wildfire_watch.request", help = "Validate + request a region to watch: uv run poe request-wildfire \"Attica, Greece\" [west south east north] | world (or: retire <slug> | retire world)" }
 run-wildfire-ingest = { cmd = "python -m examples.wildfire_watch ingest", help = "Run Wildfire Watch stage 1: poll both VIIRS satellites -> wildfire-detections (needs FIRMS_MAP_KEY)" }
 run-wildfire-tracker = { cmd = "python -m examples.wildfire_watch tracker", help = "Run Wildfire Watch stage 2: cluster detections into persistent fires -> wildfire-status / wildfire-events" }
 

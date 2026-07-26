@@ -69,7 +69,14 @@ from examples.wildfire_watch.ingest import (
     parse_area_csv,
     prune_seen,
 )
-from examples.wildfire_watch.request import box_of, overlap, slugify
+from examples.wildfire_watch.request import box_of, check_box_size, overlap, slugify
+from examples.wildfire_watch.tiles import (
+    LAND_CELLS,
+    Tile,
+    cell_slug,
+    parse_points,
+    quadtree,
+)
 from examples.wildfire_watch.tracker import (
     ACTIVE,
     EXTINGUISHED,
@@ -80,9 +87,11 @@ from examples.wildfire_watch.tracker import (
 from examples.wildfire_watch.tracking import (
     EXTINGUISH_AFTER,
     LINK_KM,
+    MAX_FIRES,
     Detection,
     absorb,
     detection_links,
+    evict_stalest,
     expired,
     found_fire,
     link_spans,
@@ -176,6 +185,90 @@ def test_box_of_reads_a_cached_config_record() -> None:
 def test_box_of_is_none_for_a_name_only_record(partial: dict) -> None:
     # enrich_config resolves these at runtime, so the request tool can't intersect them.
     assert box_of(Config.wrap({"region": "r", "name": "R", **partial})) is None
+
+
+def test_check_box_size_passes_a_sane_box(capsys: pytest.CaptureFixture) -> None:
+    check_box_size(-1.365, 44.0938903, 0.4146498, 45.7018694)     # Gironde + pad
+    assert capsys.readouterr().out == ""
+
+
+def test_check_box_size_warns_between_the_thresholds(capsys: pytest.CaptureFixture) -> None:
+    check_box_size(-5.55, 41.16, 9.93, 51.41)                     # France métropolitaine + pad
+    assert "⚠️" in capsys.readouterr().out
+
+
+def test_check_box_size_refuses_an_absurd_box() -> None:
+    # The live incident: Nominatim's box for "France" spans the whole Republic — Kerguelen to
+    # French Polynesia, 350.9° × 101.7° — and one region that size crashlooped both stages.
+    with pytest.raises(SystemExit, match="request-wildfire world"):
+        check_box_size(-178.4873749, -50.3187169, 172.4057152, 51.4055721)
+
+
+# --- tiles: the world quadtree ---
+
+def test_cell_slug_covers_all_hemisphere_corners() -> None:
+    assert cell_slug(20, -20) == "e020s20"
+    assert cell_slug(-10, 40) == "w010n40"
+    assert cell_slug(-180, -60) == "w180s60"
+    assert cell_slug(170, 80) == "e170n80"
+
+
+def test_quadtree_quiet_land_stays_at_base_cells() -> None:
+    tiles = quadtree([], land_cells=((0, 0), (10, 0)), threshold=10, min_deg=5.0)
+    assert [t.slug for t in tiles] == ["e000n00", "e010n00"]
+    assert tiles[0] == Tile("e000n00", 0.0, 0.0, 10.0, 10.0)
+
+
+def test_quadtree_hot_cell_splits_into_all_four_quadrants() -> None:
+    # 11 points in one quadrant: the cell splits, the THREE EMPTY quadrants are kept (fires
+    # ignite where there were none), and the hot 5° child stops at min_deg.
+    points = [(7.0 + i * 0.1, 7.0) for i in range(11)]
+    tiles = quadtree(points, land_cells=((0, 0),), threshold=10, min_deg=5.0)
+    assert [t.slug for t in tiles] == ["e000n00-0", "e000n00-1", "e000n00-2", "e000n00-3"]
+    assert Tile("e000n00-3", 5.0, 5.0, 10.0, 10.0) in tiles
+
+
+def test_quadtree_splits_recursively_until_min_deg() -> None:
+    points = [(1.0, 1.0)] * 11                               # one hot spot in the SW of the SW
+    tiles = quadtree(points, land_cells=((0, 0),), threshold=10, min_deg=2.5)
+    slugs = {t.slug for t in tiles}
+    assert "e000n00-0-0" in slugs                            # 2.5° leaf: still hot, at the floor
+    assert "e000n00-3" in slugs                              # the quiet 5° sibling stays whole
+    assert len(tiles) == 7                                   # 4 quadrants, the SW one split again
+
+
+def test_quadtree_adds_offshore_cells_with_detections() -> None:
+    # A gas-flare cluster in an ocean cell joins the base set by itself — the land grid is a
+    # floor, not a filter.
+    tiles = quadtree([(-155.0, 15.0)], land_cells=((0, 0),), threshold=10, min_deg=5.0)
+    assert {t.slug for t in tiles} == {"e000n00", "w160n10"}
+
+
+def test_quadtree_ignores_the_far_south() -> None:
+    assert quadtree([(0.0, -75.0)], land_cells=(), threshold=10, min_deg=5.0) == []
+
+
+def test_quadtree_is_deterministic_under_input_order() -> None:
+    points = [(7.0 + i * 0.1, 3.0) for i in range(11)]
+    assert (quadtree(points, land_cells=((0, 0),), threshold=10, min_deg=5.0)
+            == quadtree(points[::-1], land_cells=((0, 0),), threshold=10, min_deg=5.0))
+
+
+def test_world_land_grid_is_plausible() -> None:
+    # The embedded grid: on the 10° lattice, Antarctica excluded, both hemispheres populated.
+    assert len(LAND_CELLS) == 267
+    assert all(w % 10 == 0 and s % 10 == 0 and -180 <= w < 180 and -60 <= s < 90
+               for w, s in LAND_CELLS)
+    assert (20, -20) in LAND_CELLS and (-120, 40) in LAND_CELLS   # savanna belt, US west
+
+
+def test_parse_points_reads_lon_lat_pairs() -> None:
+    assert parse_points("latitude,longitude,bright_ti4\n38.9,-9.0,300.0\n") == [(-9.0, 38.9)]
+
+
+def test_parse_points_rejects_a_non_csv_body() -> None:
+    with pytest.raises(RuntimeError, match="public 24h CSV"):
+        parse_points("<html>maintenance</html>")
 
 
 # --- parse_area_csv ---
@@ -323,10 +416,34 @@ def test_prune_seen_hard_cap_drops_whole_oldest_buckets_first() -> None:
     assert sum(len(v) for v in pruned.values()) == 16 <= 20
 
 
-def test_prune_seen_hard_cap_never_empties_the_set() -> None:
-    # Even a single bucket over the cap is kept: dropping it would re-emit everything forever.
+def test_prune_seen_hard_cap_trims_within_a_single_bucket() -> None:
+    # One monster day bucket (the metropolitan-France / world-watch case): whole-bucket drops
+    # can't shrink it, so its OLDEST ids are trimmed and the newest kept — the record stays
+    # bounded no matter what, which is the whole point of a hard cap.
     seen = {"2026-07-25": [f"id{i:05d}" for i in range(50)]}
-    assert prune_seen(seen, date(2026, 7, 25), hard_cap=10) == seen
+    pruned = prune_seen(seen, date(2026, 7, 25), hard_cap=10)
+    assert pruned == {"2026-07-25": [f"id{i:05d}" for i in range(40, 50)]}
+
+
+def test_prune_seen_hard_cap_drops_buckets_before_trimming_the_survivor() -> None:
+    # Whole-bucket drops stay the first resort; the intra-bucket trim only finishes the job.
+    seen = {"2026-07-24": [f"old{i:02d}" for i in range(30)],
+            "2026-07-25": [f"new{i:02d}" for i in range(15)]}
+    pruned = prune_seen(seen, date(2026, 7, 25), hard_cap=10)
+    assert pruned == {"2026-07-25": [f"new{i:02d}" for i in range(5, 15)]}
+
+
+@pytest.mark.parametrize("seen", [
+    {"2026-07-25": [f"id{i:05d}" for i in range(50)]},                       # one monster bucket
+    {"2026-07-24": ["a"] * 30, "2026-07-25": ["b"] * 30},                    # two over-cap buckets
+    {"2026-07-23": ["x"] * 5, "2026-07-24": ["y"] * 5, "2026-07-25": ["z"] * 5},  # under the cap
+    {},                                                                       # nothing at all
+])
+def test_prune_seen_result_never_exceeds_the_cap(seen: dict[str, list[str]]) -> None:
+    # The invariant a crashlooping stage taught us to test directly: whatever the shape of the
+    # input, the surviving id count is ≤ hard_cap, so the State record size is bounded.
+    pruned = prune_seen(seen, date(2026, 7, 25), hard_cap=10)
+    assert sum(len(ids) for ids in pruned.values()) <= 10
 
 
 def test_prune_seen_warns_when_the_cap_bites(caplog: pytest.LogCaptureFixture) -> None:
@@ -334,6 +451,12 @@ def test_prune_seen_warns_when_the_cap_bites(caplog: pytest.LogCaptureFixture) -
     with caplog.at_level("WARNING"):
         prune_seen(seen, date(2026, 7, 25), hard_cap=10)
     assert "2026-07-24" in caplog.text and "cap" in caplog.text
+
+
+def test_prune_seen_warns_when_the_trim_bites(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level("WARNING"):
+        prune_seen({"2026-07-25": ["a"] * 30}, date(2026, 7, 25), hard_cap=10)
+    assert "trimmed" in caplog.text and "20" in caplog.text
 
 
 def test_seen_hard_cap_leaves_changelog_headroom() -> None:
@@ -523,6 +646,36 @@ def test_expired_respects_an_injected_ttl() -> None:
     assert expired(fire, _T + timedelta(hours=2), ttl=timedelta(hours=1))
 
 
+# --- evict_stalest (the fire-bucket hard cap) ---
+
+def test_evict_stalest_under_the_cap_is_identity() -> None:
+    fires = {"F-a": _point_fire(37.0, -7.0)}
+    kept, evicted = evict_stalest(fires, cap=1)
+    assert kept is fires and evicted == {}
+
+
+def test_evict_stalest_removes_the_oldest_last_seen_first() -> None:
+    fires = {
+        "F-old": _point_fire(37.0, -7.0, when=_T - timedelta(hours=6)),
+        "F-mid": _point_fire(37.2, -7.0, when=_T - timedelta(hours=3)),
+        "F-new": _point_fire(37.4, -7.0, when=_T),
+    }
+    kept, evicted = evict_stalest(fires, cap=1)
+    assert set(kept) == {"F-new"} and set(evicted) == {"F-old", "F-mid"}
+
+
+def test_evict_stalest_breaks_last_seen_ties_by_id() -> None:
+    fires = {"F-b": _point_fire(37.0, -7.0), "F-a": _point_fire(37.2, -7.0)}
+    kept, evicted = evict_stalest(fires, cap=1)
+    assert set(kept) == {"F-b"} and set(evicted) == {"F-a"}    # never dict-order dependent
+
+
+def test_max_fires_leaves_changelog_headroom() -> None:
+    # ~322 bytes of JSON per fire entry, measured on live savanna data (2026-07-26); the whole
+    # bucket is one changelog record and must stay well under the ~1 MB ceiling.
+    assert MAX_FIRES * 330 < 700_000
+
+
 # --- run_tracker (bare async generator, hand-built State/messages) ---
 
 def _detection_event(lat: float, lon: float, *, identity: str = "d0",
@@ -664,6 +817,26 @@ async def test_sweep_against_empty_state_yields_nothing_at_all() -> None:
     # so a quiet region never churns the changelog.
     messages, state = await _drive(State(), _sweep_event(_T))
     assert messages == [] and state is None
+
+
+async def test_detection_past_the_fire_cap_force_extinguishes_the_stalest(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bucket bound: one changelog record cannot grow without limit, so past MAX_FIRES the
+    stalest fire is forced out — the same self-healing degradation as a false extinction."""
+    monkeypatch.setattr("examples.wildfire_watch.tracker.MAX_FIRES", 2)
+    _, s1 = await _drive(State(), _detection_event(37.0, -7.0, identity="aaa",
+                                                   acquired=_T - timedelta(hours=6)))
+    _, s2 = await _drive(s1, _detection_event(37.5, -7.0, identity="bbb"))
+    messages, s3 = await _drive(s2, _detection_event(38.0, -7.0, identity="ccc"))
+
+    events = _by_topic(messages, EVENTS_TOPIC)
+    assert [e[KIND] for e in events] == [IGNITION, EXTINGUISHED]
+    assert events[0][FIRE_ID] == "F-ccc"
+    assert events[1][FIRE_ID] == "F-aaa"                      # the stalest fire went
+    assert events[1][OCCURRED_AT] == _T                       # never before its own last_seen
+    statuses = _by_topic(messages, STATUS_TOPIC)
+    assert len(statuses) == 1 and statuses[0][STATUS] == EXTINGUISHED   # flips off the live map
+    assert set(s3[FIRES]) == {"F-bbb", "F-ccc"}
 
 
 async def test_detection_after_extinction_founds_a_new_fire() -> None:

@@ -78,7 +78,16 @@ from .attributes import (
     STATUS_TOPIC,
     SWEEP_AT,
 )
-from .tracking import Detection, absorb, detection_links, expired, found_fire, merge_fires
+from .tracking import (
+    Detection,
+    MAX_FIRES,
+    absorb,
+    detection_links,
+    evict_stalest,
+    expired,
+    found_fire,
+    merge_fires,
+)
 
 log = logging.getLogger(__name__)
 
@@ -157,6 +166,23 @@ def _event(kind: str, region: str, fire_id: str, fire: dict, occurred_at: dateti
     })
 
 
+def _extinguish(key: str, region: str, fire_id: str, fire: dict,
+                occurred_at: datetime) -> tuple[Message, Message]:
+    """The two records that retire a fire, however it dies: the ``extinguished`` lifecycle
+    event with the fire's life summary, and the final status snapshot — which must outlive the
+    state entry, because it is what flips the fire off the live map (``wildfire_active`` is
+    read ``FINAL WHERE status = 'active'``)."""
+    record = _event(EXTINGUISHED, region, fire_id, fire, occurred_at)
+    record[DETECTIONS] = fire[F_COUNT]
+    record[FIRST_SEEN] = fire[F_FIRST_SEEN]
+    record[LAST_SEEN] = fire[F_LAST_SEEN]
+    if F_FRP_MAX in fire:
+        record[FRP_MAX] = fire[F_FRP_MAX]
+    return (Message(key=key, topic=EVENTS_TOPIC, value=record),
+            Message(key=key, topic=STATUS_TOPIC,
+                    value=_status(region, fire_id, fire, status=EXTINGUISHED, as_of=occurred_at)))
+
+
 async def run_tracker(state: State, msg: IncomingMessage) -> AsyncIterator[Message | State]:
     """Fold one detection-or-sweep into the region's fires — pure, I/O-free.
 
@@ -199,6 +225,17 @@ async def run_tracker(state: State, msg: IncomingMessage) -> AsyncIterator[Messa
             yield Message(key=msg.key, topic=EVENTS_TOPIC, value=record)
         fires[survivor_id] = absorb(merged, detection)
 
+    # The bucket is ONE changelog record: past MAX_FIRES the stalest fires are forced out —
+    # the same self-healing degradation as a false extinction, never an oversized record.
+    fires, evicted = evict_stalest(fires, MAX_FIRES)
+    for fire_id, fire in evicted.items():
+        log.warning("%s: %s force-extinguished — bucket over the %d-fire cap "
+                    "(%d detection(s), last seen %s)",
+                    region, fire_id, MAX_FIRES, fire[F_COUNT], fire[F_LAST_SEEN].isoformat())
+        for message in _extinguish(msg.key, region, fire_id, fire,
+                                   max(detection.acquired_at, fire[F_LAST_SEEN])):
+            yield message
+
     yield State({FIRES: _encode_fires(fires)})
 
 
@@ -220,19 +257,10 @@ async def _sweep(state: State, msg: IncomingMessage, region: str) -> AsyncIterat
             yield Message(key=msg.key, topic=STATUS_TOPIC,
                           value=_status(region, fire_id, fire, status=ACTIVE, as_of=sweep_at))
             continue
-        record = _event(EXTINGUISHED, region, fire_id, fire, sweep_at)
-        record[DETECTIONS] = fire[F_COUNT]
-        record[FIRST_SEEN] = fire[F_FIRST_SEEN]
-        record[LAST_SEEN] = fire[F_LAST_SEEN]
-        if F_FRP_MAX in fire:
-            record[FRP_MAX] = fire[F_FRP_MAX]
         log.info("%s: %s extinguished — %d detection(s), last seen %s",
                  region, fire_id, fire[F_COUNT], fire[F_LAST_SEEN].isoformat())
-        yield Message(key=msg.key, topic=EVENTS_TOPIC, value=record)
-        # The final status snapshot is what flips it off the live map (wildfire_active is read
-        # FINAL WHERE status = 'active'), so it must outlive the state entry.
-        yield Message(key=msg.key, topic=STATUS_TOPIC,
-                      value=_status(region, fire_id, fire, status=EXTINGUISHED, as_of=sweep_at))
+        for message in _extinguish(msg.key, region, fire_id, fire, sweep_at):
+            yield message
 
     if survivors:
         yield State({FIRES: _encode_fires(survivors)})
