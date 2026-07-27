@@ -574,7 +574,7 @@
           "refId": "A"
         }
       ],
-      "title": "Largest state record",
+      "title": "Largest State Record",
       "type": "stat"
     },
     {
@@ -907,7 +907,7 @@
           "refId": "A"
         }
       ],
-      "title": "State record size — high-water mark vs the 1 MiB ceiling",
+      "title": "State Record Size — High-Water Mark vs the 1 MiB Ceiling",
       "type": "timeseries"
     },
     {
@@ -915,7 +915,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Largest produced record (key + value) since process start, per output topic. One oversized message kills the producer exactly like one oversized state record, and against the same ~1 MiB ceiling — this is where a fan-out that batches too much per key shows up first.",
+      "description": "Typical consumed-record size per input topic, over a 1-hour window — wide on purpose: several examples emit in bursts (SMARD ships one diff per 15-minute data update), and a 5-minute window leaves the panel blank between them, while sizes themselves drift slowly. Both values are bucket-interpolated — the ladder is deliberately coarse through the middle, so a quantile can sit far from any real observation and never exceeds the largest finite bound. For exact statements use the high-water-mark gauges or the over-512-KiB panel; read these two as shape, not fact.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -953,7 +953,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "line"
+              "mode": "off"
             }
           },
           "thresholds": {
@@ -962,14 +962,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 786432
-              },
-              {
-                "color": "red",
-                "value": 1048576
               }
             ]
           },
@@ -982,7 +974,7 @@
         "x": 12,
         "y": 15
       },
-      "id": 48,
+      "id": 50,
       "options": {
         "annotations": {
           "clustering": -1,
@@ -1010,13 +1002,23 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (client_id, topic) (flechtwerk_message_out_max_bytes{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"})",
-          "legendFormat": "{{client_id}} → {{topic}}",
+          "expr": "histogram_quantile(0.5, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
+          "legendFormat": "p50 {{client_id}} ← {{topic}}",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
+          "legendFormat": "p95 {{client_id}} ← {{topic}}",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "Message size out — high-water mark by topic",
+      "title": "Message Size In — p50 / p95 by Topic",
       "type": "timeseries"
     },
     {
@@ -1127,7 +1129,7 @@
           "refId": "B"
         }
       ],
-      "title": "Records over 512 KiB — state + messages out (10m increase)",
+      "title": "Records Over 512 KiB — State + Messages Out (10m Increase)",
       "type": "timeseries"
     },
     {
@@ -1135,7 +1137,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Typical consumed-record size per input topic, over a 1-hour window — wide on purpose: several examples emit in bursts (SMARD ships one diff per 15-minute data update), and a 5-minute window leaves the panel blank between them, while sizes themselves drift slowly. Both values are bucket-interpolated — the ladder is deliberately coarse through the middle, so a quantile can sit far from any real observation and never exceeds the largest finite bound. For exact statements use the high-water-mark gauges or the over-512-KiB panel; read these two as shape, not fact.",
+      "description": "Largest produced record (key + value) since process start, per output topic. One oversized message kills the producer exactly like one oversized state record, and against the same ~1 MiB ceiling — this is where a fan-out that batches too much per key shows up first.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1173,7 +1175,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
+              "mode": "line"
             }
           },
           "thresholds": {
@@ -1182,6 +1184,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 786432
+              },
+              {
+                "color": "red",
+                "value": 1048576
               }
             ]
           },
@@ -1194,7 +1204,7 @@
         "x": 12,
         "y": 23
       },
-      "id": 50,
+      "id": 48,
       "options": {
         "annotations": {
           "clustering": -1,
@@ -1222,23 +1232,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
-          "legendFormat": "p50 {{client_id}} ← {{topic}}",
+          "expr": "max by (client_id, topic) (flechtwerk_message_out_max_bytes{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"})",
+          "legendFormat": "{{client_id}} → {{topic}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum by (client_id, topic, le) (rate(flechtwerk_message_in_bytes_bucket{example=~\"$example\", stage=~\"$stage\", client_id=~\"$client_id\"}[1h])))",
-          "legendFormat": "p95 {{client_id}} ← {{topic}}",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Message size in — p50 / p95 by topic",
+      "title": "Message Size Out — High-Water Mark by Topic",
       "type": "timeseries"
     },
     {
