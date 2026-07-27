@@ -10,6 +10,11 @@ dashboard either way.*
 It is the repo's answer to a question the others don't ask: *what does a stream look like when
 the source is a file that is still being written?*
 
+<p align="center">
+  <img src="../../assets/f1-grafana.png" width="100%" alt="The F1 Live Timing Grafana dashboard — the race wall: the leaderboard as of an as-of cursor with gaps, intervals, sector times, tyres and pit counts, the track-status banner, the lap counter, tape freshness, gap-to-leader and lap-time series with flag annotations, the battle radar, pit stops, race control, weather, speed traps and a track map">
+</p>
+<p align="center"><em>The race wall, scrubbed to lap 47 of 70 of the 2026 Hungarian Grand Prix — an <a href="#grafana--the-one-mechanism">as-of cursor</a> parked mid-race in a session that was long over before its tape was read. Nothing was re-timestamped to make this picture: the range end is the cursor and nothing else moves, so dragging it forward re-forms the wall at the next instant — and a now-relative range would show a live session in these same panels.</em></p>
+
 ```mermaid
 flowchart LR
     IDX{{"livetiming.formula1.com<br/>/static/&lt;year&gt;/Index.json"}}:::ext --> RQ["request.py<br/>season | follow | session"]:::process
@@ -268,12 +273,22 @@ Three dashboards:
 
 - **Flechtwerk — F1 Live Timing** (`flechtwerk-f1`) — the race wall: leaderboard, flag banner,
   lap counter, tape freshness, gaps, lap times with flag annotations, battle radar, pit stops,
-  race control, weather, speed traps, and a track map.
+  race control, weather, speed traps, and a track map. Pictured [at the top](#f1-live-timing--a-season-on-tape).
 - **Flechtwerk — F1 Strategy** (`flechtwerk-f1-strategy`) — stint timeline, degradation curve by
   compound over clean laps, position by lap, rolling pace, pit-loss ledger. Lap-indexed, so it
   ignores the time range (except the stint timeline, which says so).
 - **Flechtwerk — F1 Season** (`flechtwerk-f1-season`) — the entry point: every session on tape,
   with the three data links, plus championship progression, podiums, and season tallies.
+
+<p align="center">
+  <img src="../../assets/f1-strategy-grafana.png" width="100%" alt="The F1 Strategy Grafana dashboard — a per-driver stint timeline coloured by compound with pit markers and flag annotations, a degradation curve of median clean lap time against tyre age split by compound, position by lap for all twenty cars, rolling five-lap pace, and a pit-loss ledger of stops with average stationary and pit-lane times">
+</p>
+<p align="center"><em>The same Hungarian Grand Prix, read as strategy: one row per driver on the stint timeline (yellow MEDIUM → grey HARD → red SOFT, the black gaps the stops, the dashed lines the flags), the degradation curve separating the compounds by how fast they fell away with tyre age, and the pit-loss ledger totalling what each strategy cost in the lane. This dashboard is <strong>lap-indexed</strong> — the time range only frames the stint timeline; the other four panels come out the same whatever you pick.</em></p>
+
+<p align="center">
+  <img src="../../assets/f1-season-grafana.png" width="100%" alt="The F1 Season Grafana dashboard — a table of every session on tape with its completion status and circuit, championship points across the season per driver, the podium of every race, season tallies of wins and podiums and points finishes, and a per-session row count of what each tape produced">
+</p>
+<p align="center"><em>Eleven race weekends of the 2026 season on one page, every session marked <code>complete</code> — this is what a whole-season backfill looks like once the tape has been read. The championship curve is not a scoreboard scraped from anywhere: it is <code>f1_championship</code>, folded out of the tape's own <code>ChampionshipPrediction</code> feed one race at a time. Each session label carries the three data links — open the wall at that session, replay it, or read it as strategy.</em></p>
 
 Two Grafana facts worth knowing if you edit these: a stat panel over a **string** field needs
 `reduceOptions.fields = "/.*/"` (the default means "numeric only", and the panel reads *No data*),
