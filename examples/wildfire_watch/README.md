@@ -144,10 +144,18 @@ only knowingly. Here is the reasoning:
   stage never touches `os.environ` — demonstrates that the framework's no-env-magic rule and
   real-world secrets are compatible. Getting that wrong (an env read buried in a stage) is a
   common enough mistake to be worth one worked counter-example.
-- **The cost is bounded.** At the 5-minute poll interval, two GETs per region per poll, even 20
-  regions cost ~480 transactions per 10-minute window. Watch the `mapkey_status` endpoint above;
-  note that a *large* bounding box can be billed as several transactions, which is why
-  `request-wildfire` warns about boxes wider than 10° on a side.
+- **The cost is bounded — but you have to count it.** Two GETs per region per poll, each billed
+  as *several* transactions (~4 for a 10° box over two days), at the 15-minute poll interval:
+  20 named regions cost ~160 transactions per round, nowhere near the meter. A few hundred
+  regions is a different animal — see "Count your quota" under the world watch, which is what
+  sets that interval. Watch the `mapkey_status` endpoint above rather than trusting the
+  arithmetic, and note that this is also why `request-wildfire` warns about boxes wider than 10°
+  on a side.
+- **A 400 doesn't tell you which fault it is.** FIRMS answers a wrong key *and* an exhausted
+  quota with the same `400 Invalid MAP_KEY.` — `mapkey_status` conflates them too ("MAP_KEY is
+  invalid or your have exceeded your transaction/time limit"). The ingest stage's error message
+  therefore names both causes and hands you the status URL; if the key checks out there, you are
+  over quota and it drains within 10 minutes of the polling stopping.
 
 `FIRMS_MAP_KEY` is only needed by `run-wildfire-ingest`. `setup-wildfire` and `run-wildfire-tracker` work
 without it, and `request-wildfire` merely *uses* it, if present, to preview a region's live detection
@@ -272,19 +280,27 @@ free. Three design points:
   and force-extinguishes its stalest fires past `MAX_FIRES` (id churn that self-heals like any
   false extinction, warned) — both caps exist precisely so the worst day on Earth costs
   accuracy in one tile rather than a crashloop.
-- **Count your quota.** ~340 tiles × 2 satellites ≈ 680 requests per poll round, and FIRMS
-  bills an area request as *several* transactions — **measured 2026-07-26: ~4 per request for
-  this tiling, ≈ 2 700 transactions per round**. A round of sequential GETs takes ~6 minutes,
-  so one instance rides at ~85 % of the default 5 000-per-10-minutes quota: it fits, with
-  little to spare. Two things follow. Check
-  `https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=<your key>` after
-  your first round rather than trusting these numbers to hold. And the scale-out story
-  changes at world size: a **second ingest instance on the same key would double the
-  transaction rate and trip the quota** — the bottleneck is NASA's meter, not your CPU, so
-  scaling out needs a second key (one per instance) rather than a second process. The status
-  stream also gets loud at world scale — one snapshot per active fire per sweep is tens of
-  thousands of rows per round during the fire season (the first live round tracked ~19 000
-  active fires worldwide).
+- **Count your quota — it sets the poll interval.** ~350 tiles × 2 satellites ≈ 700 requests per
+  round, and FIRMS bills an area request as *several* transactions — **measured 2026-07-26: ~4 per
+  request for this tiling, ≈ 2 800 transactions per round** against the default
+  5 000-per-10-minutes budget. The framework polls every active config *concurrently* in one
+  cycle, so a round's spend lands as a burst; what matters is therefore **how many rounds fall
+  inside one 10-minute window**, and at the 5-minute interval this example originally shipped, the
+  answer is two — ~5 600 transactions, over the line. That is not a theoretical worry:
+  **2026-07-27 the world watch exhausted the key**, after which FIRMS 400s every request, the
+  cycle dies, the supervisor restarts it, and the fresh round re-spends the next window
+  immediately — an exhausted quota that can never drain. Hence `POLL_INTERVAL = 15 minutes`
+  (one round per window, with a full round of headroom for exactly that restart), and hence the
+  stage now **latches the first 400 and stops sending** so a doomed round costs one request
+  instead of 700. Check
+  `https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=<your key>` after your
+  first round rather than trusting these numbers to hold; NASA will raise the limit on request,
+  which is the real fix if you want the world watch polled faster. And note the scale-out story
+  changes at world size: a **second ingest instance on the same key doubles the transaction rate
+  and trips the quota** — the bottleneck is NASA's meter, not your CPU, so scaling out needs a
+  second key (one per instance) rather than a second process. The status stream also gets loud at
+  world scale — one snapshot per active fire per sweep is tens of thousands of rows per round
+  during the fire season (the first live round tracked ~19 000 active fires worldwide).
 
 A fire straddling a tile border is tracked once per tile (the overlap caveat below, in
 edge-touching form) — the honest cost of region-partitioned discovery, unchanged.
@@ -297,7 +313,9 @@ its first poll — a quiet tile without even a sweep is the tell). `uv run poe w
 wraps both stages in a restart-on-10s loop; a bare `run-wildfire-ingest` is for a terminal
 where you *watch* it. A restart is cheap on Kafka (the seen-set restores, so re-polls re-emit
 nothing) but re-spends the round's transactions, so back-to-back restarts can brush the quota
-until a 10-minute window resets — that is the recovery working, not failing.
+until a 10-minute window resets. That drains by itself *because* a rejected key now stops the
+round at its first 400 — with the whole round still firing, the restart loop was the thing
+keeping the key exhausted, which is how 2026-07-27's incident went.
 
 ## Caveats (read these)
 

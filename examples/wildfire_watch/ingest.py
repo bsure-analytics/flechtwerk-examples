@@ -28,9 +28,15 @@ caller) reads ``FIRMS_MAP_KEY`` and injects it, so this module keeps the framewo
 rule intact. That is also why there is no module-level ``stage`` singleton here as the other
 extractors have — a credential cannot be baked in at import time.
 
-**Let it crash.** HTTP errors, an invalid key (FIRMS answers 400 ``Invalid MAP_KEY.``), an
-over-quota response, or a body that isn't CSV all raise. There is one upstream and no remedy a
-retry loop could apply, so the 5-minute cadence plus the supervisor's restart *is* the recovery.
+**Let it crash — but don't burn the quota on the way down.** HTTP errors, an invalid key, an
+over-quota response, or a body that isn't CSV all raise: there is one upstream and no remedy a
+retry loop could apply, so the poll cadence plus the supervisor's restart *is* the recovery.
+The one refinement the world watch forced (see :meth:`FirmsIngest._fetch_area`): FIRMS answers a
+**bad key and an exhausted quota with the same 400** ``Invalid MAP_KEY.``, and the framework
+polls every active config *concurrently* per cycle, so at world scale a rejected key would spend
+~700 doomed requests before the cycle raised — the exact spend that keeps a quota exhausted
+across restarts. So the first 400 latches, later polls in that cycle raise without a request,
+and the message names both causes plus the endpoint that tells them apart.
 
 Data courtesy of NASA FIRMS — see the README's attribution.
 """
@@ -91,6 +97,22 @@ excluded** despite currently serving data, because of the data anomaly NASA has 
 (MODIS reports confidence as 0–100, not ``l``/``n``/``h``) and would add mapping noise without
 teaching a new framework lesson."""
 
+MAPKEY_STATUS_PATH = "/mapserver/mapkey_status/?MAP_KEY="
+"""Where an operator settles "bad key or spent quota?" — the one endpoint that distinguishes the
+two faults FIRMS reports identically. Named here so the error message can hand it over."""
+
+QUOTA_TRANSACTIONS = 5_000
+"""NASA's default per-key budget per :data:`QUOTA_INTERVAL_MINUTES`, quoted in the 400 message.
+
+An area request is billed as **several** transactions (measured ~4 for a 10° box over
+:data:`DAY_RANGE` days), so the spend an operator has to reason about is regions × ``SOURCES`` ×
+~4 per poll round — the arithmetic that decides the ops caller's poll interval, and the one thing
+worth having in front of you the moment the key is rejected."""
+
+QUOTA_INTERVAL_MINUTES = 10
+"""The quota's sliding window. Also how long an exhausted key takes to recover — provided the
+polling actually stops, which is what the :data:`~FirmsIngest._rejected` latch is for."""
+
 DAY_RANGE = 2
 """How many days of the rolling window to request (FIRMS accepts 1..5).
 
@@ -122,9 +144,10 @@ CSV_HEADER_PREFIX = "latitude,longitude"
 
 FIRMS signals some failures with a **non-CSV body**, and not always with a non-2xx status, so
 the header is checked explicitly and a mismatch raises loudly with a snippet of what did arrive.
-A bad key is in fact a 400 (``Invalid MAP_KEY.``) that ``raise_for_status`` already catches; this
-guard is what stops a maintenance page or a quota notice served as 200 from being parsed into
-zero detections and silently reported as "no fires"."""
+A bad key or a spent quota is in fact a 400 (``Invalid MAP_KEY.``), which
+:meth:`FirmsIngest._fetch_area` handles by name; this guard is what stops a maintenance page or a
+quota notice served as 200 from being parsed into zero detections and silently reported as
+"no fires"."""
 
 _ID_SEPARATOR = "\x1f"
 """ASCII unit separator, joining the identity fields before hashing so that no combination of
@@ -274,6 +297,7 @@ class FirmsIngest(Extractor):
         self._base_url = base_url.rstrip("/")
         self._topic = detections_topic
         self._geocoder = geocoder
+        self._rejected: str | None = None
 
     async def __aenter__(self) -> "FirmsIngest":
         if self._client is None:
@@ -323,6 +347,47 @@ class FirmsIngest(Extractor):
         bbox = f"{config[WEST]},{config[SOUTH]},{config[EAST]},{config[NORTH]}"
         return f"{self._base_url}/api/area/csv/{self._map_key}/{source}/{bbox}/{DAY_RANGE}"
 
+    async def _fetch_area(self, config: Config, source: str) -> httpx.Response:
+        """One area GET, with a credential rejection made legible and made cheap.
+
+        **Legible.** FIRMS answers *both* a wrong MAP_KEY and a spent quota with 400
+        ``Invalid MAP_KEY.`` — even ``mapkey_status`` conflates them ("MAP_KEY is invalid or your
+        have exceeded your transaction/time limit"). ``raise_for_status`` reports neither cause,
+        just ``Client error '400 Bad Request'``, which is how a rate limit reads as a wall of
+        opaque HTTP noise. So the body is quoted, both causes are named with the quota arithmetic,
+        and the message hands over the endpoint that settles which one it is.
+
+        **Cheap.** The first rejection latches in ``self._rejected``, and :meth:`poll` raises on it
+        before issuing anything. The framework polls every active config concurrently in one
+        cycle, so without the latch a rejected key costs ``regions × len(SOURCES)`` requests per
+        cycle — ~700 at world scale, every 10-second supervisor restart, which is precisely how an
+        exhausted quota stays exhausted instead of draining in its next 10-minute window. Requests
+        already in flight still land (nothing can recall those); everything still queued behind
+        the connection pool is dropped. This is not an in-process retry — the opposite: the cycle
+        still fails and the process still dies, it just stops paying for a doomed round.
+        """
+        assert self._client is not None, "client is opened in __aenter__ or injected"
+        response = await self._client.get(self._area_url(config, source))
+        if response.status_code == 400:
+            self._rejected = response.text.strip()
+            raise RuntimeError(self._rejection_message(source))
+        response.raise_for_status()
+        return response
+
+    def _rejection_message(self, source: str | None = None) -> str:
+        """The one message both the latching 400 and every poll behind it raise.
+
+        ``source`` names the request that actually got the 400; the polls that never left name
+        none, so a log makes it obvious which line is the original fault."""
+        where = f"the {source} area request" if source else "this key (already rejected this cycle)"
+        return (
+            f"FIRMS rejected {where} with 400 {self._rejected!r}. That answer "
+            f"covers two different faults and does not say which: the MAP_KEY is wrong, or the "
+            f"key has spent its quota ({QUOTA_TRANSACTIONS} transactions per "
+            f"{QUOTA_INTERVAL_MINUTES} minutes — each watch region costs {len(SOURCES)} requests "
+            f"per poll, and an area request is billed as several transactions). Check which: "
+            f"curl {self._base_url}{MAPKEY_STATUS_PATH}$FIRMS_MAP_KEY")
+
     async def poll(self, config: Config, state: State) -> AsyncIterator[Message | State]:
         """Emit this region's new detections, then its sweep marker, then the seen-set.
 
@@ -335,7 +400,10 @@ class FirmsIngest(Extractor):
         produces them in the same order, which matters because the tracker's clustering result
         depends on arrival order (which detection founds a fire and which joins it).
         """
-        assert self._client is not None, "client is opened in __aenter__ or injected"
+        # A key FIRMS already rejected this cycle: fail without spending a request. See
+        # _fetch_area — at world scale the concurrent cycle would otherwise pay ~700 times over.
+        if self._rejected is not None:
+            raise RuntimeError(self._rejection_message())
         region = config[REGION]
 
         seen = {day: list(ids) for day, ids in (state.get(SEEN) or {}).items()}
@@ -344,8 +412,7 @@ class FirmsIngest(Extractor):
         rows: list[dict[str, str]] = []
         fetched_ats: list[datetime] = []
         for source in SOURCES:
-            response = await self._client.get(self._area_url(config, source))
-            response.raise_for_status()
+            response = await self._fetch_area(config, source)
             rows += parse_area_csv(response.text)
             fetched_ats.append(self._fetched_at(response))
         # The later of the two responses: the sweep's event time must not claim to know more

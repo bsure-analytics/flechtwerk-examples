@@ -35,13 +35,20 @@ from .tracker import stage as tracker_stage
 MAP_KEY_ENV = "FIRMS_MAP_KEY"
 """Environment variable holding the NASA FIRMS MAP_KEY, read by this ops caller only."""
 
-POLL_INTERVAL = timedelta(minutes=5)
+POLL_INTERVAL = timedelta(minutes=15)
 """Two GETs per region per poll (NOAA-20 + NOAA-21).
 
-NRT data lands up to ~3 h after acquisition and a satellite revisit is hours apart, so polling
-faster would mostly re-fetch the same rows. At 5 minutes even 20 regions cost ~480 requests per
-10-minute interval against NASA's 5000-transaction budget — and note a *large* bounding box can
-count as several transactions, so the headroom is real rather than theoretical."""
+Freshness costs nothing here: NRT data lands up to ~3 h after acquisition and a satellite revisit
+is hours apart, so a faster cadence mostly re-fetches the same rows. **NASA's meter sets the
+number.** The quota is 5000 transactions per 10-minute interval, an area request is billed as
+several transactions (~4, measured), and the framework polls *every* active config concurrently
+per cycle — so one round costs ``regions × 2 × ~4`` transactions in a burst, and the interval has
+to keep two rounds out of one 10-minute window. The world watch is the binding case: ~350 tiles
+≈ 2800 transactions per round, which at the original 5 minutes put **two rounds inside every
+window (~5600 > 5000)** and exhausted the key — after which FIRMS 400s everything and the crash
+loop re-spends immediately, so the quota never drains. 15 minutes leaves a full round of headroom
+for exactly that restart. A handful of named regions is nowhere near the meter (20 regions ≈ 160
+transactions per round) and may be polled faster if you want a livelier demo."""
 
 
 def _map_key() -> str:

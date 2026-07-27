@@ -351,6 +351,34 @@ async def test_ingest_propagates_an_http_error() -> None:
             await runner.poll_one(runner.entries[REGION_SLUG])
 
 
+async def test_ingest_a_400_names_both_the_key_and_the_quota() -> None:
+    # FIRMS reports a wrong key and a spent quota identically, so the message has to name both
+    # and point at mapkey_status — httpx's own "Client error '400 Bad Request'" names neither.
+    stage, _, _ = _stage({"date": _T}, status=400, n20=ERROR_BODY, n21=ERROR_BODY)
+    runner, _ = await _poll(stage, CONFIG_WITH_BBOX)
+    async with stage:
+        with pytest.raises(RuntimeError, match="Invalid MAP_KEY") as raised:
+            await runner.poll_one(runner.entries[REGION_SLUG])
+    message = str(raised.value)
+    assert "spent its quota" in message and "5000 transactions" in message
+    assert "mapkey_status" in message
+
+
+async def test_ingest_a_rejected_key_stops_spending_requests() -> None:
+    # The world-watch lesson: the framework polls every config concurrently, so without the latch
+    # a rejected key costs two requests per region per cycle — which is what keeps a quota
+    # exhausted across restarts. The first 400 latches; later polls raise having sent nothing.
+    stage, _, paths = _stage({"date": _T}, status=400, n20=ERROR_BODY, n21=ERROR_BODY)
+    runner, _ = await _poll(stage, CONFIG_WITH_BBOX)
+    async with stage:
+        with pytest.raises(RuntimeError, match="Invalid MAP_KEY"):
+            await runner.poll_one(runner.entries[REGION_SLUG])
+        assert len(paths) == 1                                   # failed on the FIRST source, not both
+        with pytest.raises(RuntimeError, match="already rejected this cycle"):
+            await runner.poll_one(runner.entries[REGION_SLUG])
+        assert len(paths) == 1                                   # and the second poll sent nothing
+
+
 async def test_ingest_raises_loudly_on_a_non_csv_body_served_as_200() -> None:
     # The failure mode the header guard exists for: a quota notice or maintenance page with a
     # 200 status would otherwise parse as "no fires".
