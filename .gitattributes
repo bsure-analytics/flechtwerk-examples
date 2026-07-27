@@ -1,0 +1,7 @@
+# The F1 Live Timing fixtures are BYTE-EXACT recordings, and every cursor in that example is a
+# byte offset into them. Their CRLF framing and their UTF-8 BOM are load-bearing: under this
+# machine's `core.autocrlf = input` git silently strips the CRs on commit, which shortens each
+# line by one byte, shifts every offset, and makes a fresh clone fail the framing tests for
+# reasons that look nothing like the cause. `-text` tells git these are not text and must never
+# be converted, in either direction.
+examples/f1_live_timing/tests/fixtures/session/** -text

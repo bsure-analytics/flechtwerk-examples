@@ -76,3 +76,9 @@ scrape_configs:
         labels: { example: wildfire_watch, stage: extractor }
       - targets: ["host.docker.internal:9121"]
         labels: { example: wildfire_watch, stage: transformer }
+      # f1_live_timing runs two host stages under one example label: the tape ingest (9122) and
+      # the board-building timing transformer (9123).
+      - targets: ["host.docker.internal:9122"]
+        labels: { example: f1_live_timing, stage: extractor }
+      - targets: ["host.docker.internal:9123"]
+        labels: { example: f1_live_timing, stage: transformer }

@@ -1,0 +1,814 @@
+{
+ "uid": "flechtwerk-f1-season",
+ "title": "Flechtwerk — F1 Season",
+ "description": "The entry point: every session on tape, with one click to open the race wall at it and one to replay it. Keep this dashboard's time range NOW-RELATIVE — the replay link passes ${__to} as the wall-clock instant the replay starts from, and an absolute range would freeze it (the race wall's `play_ms` textbox is the manual fallback).",
+ "tags": [
+  "flechtwerk",
+  "f1"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "1m",
+ "time": {
+  "from": "now-1y",
+  "to": "now"
+ },
+ "timepicker": {},
+ "templating": {
+  "list": [
+   {
+    "type": "custom",
+    "name": "entity",
+    "label": "Championship",
+    "query": "driver,team",
+    "includeAll": false,
+    "multi": false,
+    "options": [
+     {
+      "text": "driver",
+      "value": "driver",
+      "selected": true
+     },
+     {
+      "text": "team",
+      "value": "team",
+      "selected": false
+     }
+    ],
+    "current": {
+     "text": "driver",
+     "value": "driver"
+    }
+   }
+  ]
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "table",
+   "title": "Sessions on Tape — Open One, or Replay It",
+   "description": "Every session ingested, newest first. The two data links on `label` are the point of this dashboard: **open** hands the race wall the session key and a window padded to the tape (from −15 min, because recording starts ~50 min before lights-out, to +60 min, because the tape outlives the flag); **▶ replay** adds the virtual-clock variables so the wall re-runs the session from its start at ${speed}×. The replay link needs THIS dashboard to keep a now-relative range, because it passes ${__to} as the wall-clock moment the replay began — if you have pinned an absolute range here, type the current epoch-ms into the wall's `play_ms` box instead.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "label"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 380
+       },
+       {
+        "id": "links",
+        "value": [
+         {
+          "title": "Open the race wall at this session",
+          "url": "/d/flechtwerk-f1/flechtwerk-f1-live-timing?var-session=${__data.fields.session_key}&var-mode=wall&var-speed=5&var-play_ms=0&var-race_start_ms=0&from=${__data.fields.from_ms}&to=${__data.fields.to_ms}",
+          "targetBlank": false
+         },
+         {
+          "title": "▶ Replay this session on the race wall",
+          "url": "/d/flechtwerk-f1/flechtwerk-f1-live-timing?var-session=${__data.fields.session_key}&var-mode=replay&var-speed=5&var-play_ms=${__to}&var-race_start_ms=${__data.fields.from_ms}&from=${__data.fields.from_ms}&to=${__data.fields.to_ms}",
+          "targetBlank": false
+         },
+         {
+          "title": "📈 Strategy view for this session",
+          "url": "/d/flechtwerk-f1-strategy/flechtwerk-f1-strategy?var-session=${__data.fields.session_key}&from=${__data.fields.from_ms}&to=${__data.fields.to_ms}",
+          "targetBlank": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "session_key"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 100
+       },
+       {
+        "id": "unit",
+        "value": "none"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "from_ms"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "to_ms"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "status"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 110
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "basic"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "Ends": {
+            "text": "complete",
+            "color": "green",
+            "index": 0
+           },
+           "Finalised": {
+            "text": "finalised",
+            "color": "green",
+            "index": 1
+           },
+           "Started": {
+            "text": "LIVE",
+            "color": "red",
+            "index": 2
+           },
+           "Finished": {
+            "text": "finished",
+            "color": "blue",
+            "index": 3
+           },
+           "Inactive": {
+            "text": "inactive",
+            "color": "text",
+            "index": 4
+           },
+           "Aborted": {
+            "text": "aborted",
+            "color": "orange",
+            "index": 5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT session_key, label, session_name, status,\n       start_utc, circuit, country,\n       toUnixTimestamp64Milli(start_utc) - 15 * 60 * 1000 AS from_ms,\n       toUnixTimestamp64Milli(end_utc) + 60 * 60 * 1000   AS to_ms\nFROM flechtwerk.f1_sessions FINAL\nORDER BY start_utc DESC, session_key DESC"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Championship Points Across the Season",
+   "description": "From the ChampionshipPrediction feed — a race-only feed, so one point per race weekend. Driver rows are keyed by racing number and team rows by the full CONSTRUCTOR name ('Red Bull Racing Red Bull Ford'), which is not the TeamName the driver list uses; hence one table with an entity_type discriminator rather than a join that would silently miss.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 0,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "showPoints": "always",
+      "pointSize": 5,
+      "fillOpacity": 0,
+      "spanNulls": true
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "NOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PIA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LEC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "VER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "RUS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ANT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALB"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SAI"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "STR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "GAS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "COL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HUL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "OCO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BEA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LAW"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LIN"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "showLegend": true,
+     "calcs": [
+      "lastNotNull"
+     ],
+     "sortBy": "Last *",
+     "sortDesc": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 0,
+     "rawSql": "SELECT s.start_utc AS time,\n       if('${entity}' = 'driver', coalesce(nullIf(d.tla, ''), c.entity_id), c.entity_id) AS entity,\n       max(c.points) AS points\nFROM flechtwerk.f1_championship AS c\nINNER JOIN (SELECT session_key, start_utc FROM flechtwerk.f1_sessions FINAL) AS s\n    USING (session_key)\nLEFT JOIN (SELECT DISTINCT racing_number, argMax(tla, event_time) AS tla\n           FROM flechtwerk.f1_drivers FINAL GROUP BY racing_number) AS d\n    ON d.racing_number = c.entity_id\nWHERE c.entity_type = '${entity}' AND c.points IS NOT NULL\nGROUP BY time, entity\nORDER BY time"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^points (.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "table",
+   "title": "Podiums — The Final Classification of Every Race",
+   "description": "The classification is just the leaderboard read at the end of the tape: the board emits one final snapshot per driver when SessionStatus reaches 'Finalised', so an argMax over the whole session gives the result with no separate results feed involved.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "label\\pos"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 380
+       },
+       {
+        "id": "displayName",
+        "value": "Race"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT label, drv, pos FROM (\n    SELECT s.label AS label, s.start_utc AS started,\n           argMax(f.tla, f.event_time)      AS drv,\n           argMax(f.position, f.event_time) AS pos\n    FROM flechtwerk.f1_standings AS f\n    INNER JOIN (SELECT session_key, label, start_utc FROM flechtwerk.f1_sessions FINAL\n                WHERE session_name = 'Race') AS s USING (session_key)\n    GROUP BY label, started, f.racing_number)\nWHERE pos BETWEEN 1 AND 3\nORDER BY started DESC, pos"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "columnField": "pos",
+      "rowField": "label",
+      "valueField": "drv"
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "table",
+   "title": "Season Tallies",
+   "description": "Wins, podiums and points finishes counted from the same final classifications. Note this counts the races **you have ingested**, not the season — which is exactly the honest thing for a dashboard over a tape you chose the extent of.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "wins"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "gradient"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "transparent"
+          },
+          {
+           "value": 1,
+           "color": "semi-dark-yellow"
+          },
+          {
+           "value": 4,
+           "color": "yellow"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT drv, countIf(pos = 1) AS wins, countIf(pos <= 3) AS podiums,\n       countIf(pos <= 10) AS points_finishes, count() AS races\nFROM (\n    SELECT s.session_key AS sk,\n           argMax(f.tla, f.event_time)      AS drv,\n           argMax(f.position, f.event_time) AS pos\n    FROM flechtwerk.f1_standings AS f\n    INNER JOIN (SELECT session_key FROM flechtwerk.f1_sessions FINAL\n                WHERE session_name = 'Race') AS s USING (session_key)\n    GROUP BY sk, f.racing_number)\nWHERE pos > 0 AND drv != ''\nGROUP BY drv\nORDER BY wins DESC, podiums DESC, points_finishes DESC"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "table",
+   "title": "What Each Session's Tape Produced",
+   "description": "A sanity panel, and a quiet demonstration of the emit-on-change rule: a race's TimingData feed carries ~68 000 lines, of which ~88 % only move a marshalling segment's status. The board emits a leaderboard row when a patch actually changed something about a driver, so a race lands ~37 000 rows here rather than ~150 000 near-duplicates.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 22,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "label"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 340
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT s.label AS label, s.session_name AS session_name,\n       count() AS standings_rows, uniqExact(f.racing_number) AS drivers\nFROM flechtwerk.f1_standings AS f\nINNER JOIN (SELECT session_key, label, session_name, start_utc FROM flechtwerk.f1_sessions FINAL)\n    AS s USING (session_key)\nGROUP BY label, session_name, s.start_utc\nORDER BY s.start_utc DESC"
+    }
+   ]
+  }
+ ]
+}

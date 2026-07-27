@@ -1,0 +1,1273 @@
+{
+ "uid": "flechtwerk-f1-strategy",
+ "title": "Flechtwerk — F1 Strategy",
+ "description": "The strategist's view of a session: stints, degradation, and what the pit lane cost. Everything here is built from the sparse `f1_laps` and `f1_pit_stops` event streams rather than the leaderboard, and everything pace-related filters on `clean` — the lap-level flag tag the board derives from the TrackStatus feed. Lap-indexed panels use no time range; set the session and read.",
+ "tags": [
+  "flechtwerk",
+  "f1"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "",
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "timepicker": {},
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "session",
+    "label": "Session",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "query": {
+     "refId": "session",
+     "editorType": "sql",
+     "rawSql": "SELECT session_key AS __value, label AS __text FROM flechtwerk.f1_sessions FINAL ORDER BY start_utc DESC, session_key DESC"
+    },
+    "refresh": 2,
+    "includeAll": false,
+    "multi": false,
+    "sort": 0,
+    "current": {},
+    "description": "Which session's tape to read. Newest first, so a live weekend surfaces at the top. The value is the archive's numeric session key — the one column every table is filtered by."
+   },
+   {
+    "type": "query",
+    "name": "drivers",
+    "label": "Drivers",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "query": {
+     "refId": "drivers",
+     "editorType": "sql",
+     "rawSql": "SELECT DISTINCT racing_number AS __value, tla AS __text FROM flechtwerk.f1_drivers FINAL WHERE session_key = ${session} ORDER BY tla"
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "sort": 0,
+    "current": {},
+    "allValue": null
+   }
+  ]
+ },
+ "annotations": {
+  "list": [
+   {
+    "name": "Flags",
+    "enable": true,
+    "hide": false,
+    "iconColor": "rgba(255, 200, 0, 0.6)",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "target": {
+     "refId": "Anno",
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT toUnixTimestamp64Milli(started_at) AS time, toUnixTimestamp64Milli(coalesce(ended_at, now64(3))) AS timeEnd, label AS text FROM flechtwerk.f1_track_status FINAL WHERE session_key = ${session} AND label != 'AllClear' ORDER BY started_at"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "state-timeline",
+   "title": "Stint Timeline — What Everyone Was On, When",
+   "description": "One band per driver, coloured by compound, drawn from the per-lap tyre state the board folded out of TimingAppData. Tyre age counts the set's TOTAL laps including StartLaps — so a scrubbed set fitted at lap 64 starts life at age 3, not 0. Getting that wrong is what makes a used-tyre stint look mysteriously slow for its age.\n\nThis is the ONE time-indexed panel on this dashboard, so it needs the dashboard's time range to cover the session — enter from 'Flechtwerk — F1 Season' via the 📈 strategy link and the window comes with you. Everything else here is indexed by lap and ignores the range entirely.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "fillOpacity": 90,
+      "lineWidth": 0
+     },
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "SOFT",
+         "color": "red",
+         "index": 0
+        },
+        "2": {
+         "text": "MEDIUM",
+         "color": "yellow",
+         "index": 1
+        },
+        "3": {
+         "text": "HARD",
+         "color": "#cccccc",
+         "index": 2
+        },
+        "4": {
+         "text": "INTERMEDIATE",
+         "color": "green",
+         "index": 3
+        },
+        "5": {
+         "text": "WET",
+         "color": "blue",
+         "index": 4
+        },
+        "0": {
+         "text": "?",
+         "color": "transparent",
+         "index": 5
+        }
+       }
+      }
+     ],
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "value": null,
+        "color": "transparent"
+       },
+       {
+        "value": 1,
+        "color": "red"
+       },
+       {
+        "value": 2,
+        "color": "yellow"
+       },
+       {
+        "value": 3,
+        "color": "#cccccc"
+       },
+       {
+        "value": 4,
+        "color": "green"
+       },
+       {
+        "value": 5,
+        "color": "blue"
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showValue": "auto",
+    "rowHeight": 0.9,
+    "mergeValues": true,
+    "alignValue": "center",
+    "perPage": 25,
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 0,
+     "rawSql": "WITH stints AS (\n    SELECT tla AS drv, stint, any(tyre_compound) AS compound,\n           min(event_time) AS from_t, max(event_time) AS to_t\n    FROM flechtwerk.f1_laps\n    WHERE session_key = ${session} AND racing_number IN (${drivers}) AND tyre_compound != ''\n    GROUP BY drv, stint)\nSELECT toStartOfInterval(from_t, INTERVAL 30 SECOND) + toIntervalSecond(30 * n) AS time, drv,\n       multiIf(compound = 'SOFT', 1, compound = 'MEDIUM', 2, compound = 'HARD', 3,\n               compound = 'INTERMEDIATE', 4, compound = 'WET', 5, 0) AS compound\nFROM stints\nARRAY JOIN range(0, toUInt32(dateDiff('second', from_t, to_t) / 30) + 1) AS n\nORDER BY time"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^compound (.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "trend",
+   "title": "Degradation — Median Clean Lap Time vs Tyre Age",
+   "description": "The panel the whole SCD join exists for. `clean` means the lap ran entirely under a green track AND outside the pit lane, derived from the WORST flag state seen during the lap rather than at its end. Without that filter every safety-car lap lands in this scatter and the degradation curve is meaningless — which is the honest reason a 585-byte flag feed is worth folding into 40 000 leaderboard rows. Each point is the MEDIAN over the selected drivers, so one car stuck in traffic does not bend the curve; pick a single driver in the Drivers variable to read theirs alone. The tail of each line is thin data — few drivers run a set that long.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 10,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "suffix:s",
+     "decimals": 3,
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 5,
+      "lineWidth": 2,
+      "showPoints": "always",
+      "fillOpacity": 0,
+      "spanNulls": true
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SOFT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "red"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "MEDIUM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "yellow"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HARD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#cccccc"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "INTERMEDIATE"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "green"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "WET"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "xField": "tyre_age",
+    "tooltip": {
+     "mode": "single",
+     "sort": "none"
+    },
+    "legend": {
+     "showLegend": true,
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT tyre_age,\n       round(median(if(tyre_compound = 'SOFT',   lap_ms / 1000, NULL)), 3) AS SOFT,\n       round(median(if(tyre_compound = 'MEDIUM', lap_ms / 1000, NULL)), 3) AS MEDIUM,\n       round(median(if(tyre_compound = 'HARD',   lap_ms / 1000, NULL)), 3) AS HARD\nFROM flechtwerk.f1_laps\nWHERE session_key = ${session} AND racing_number IN (${drivers})\n  AND clean AND lap_ms IS NOT NULL AND tyre_age IS NOT NULL\nGROUP BY tyre_age\nORDER BY tyre_age"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "trend",
+   "title": "Position by Lap",
+   "description": "X is the lap number, not a timestamp — a `trend` panel, because the natural axis of a race story is laps. Built from the lap events the board emits on each NumberOfLaps increment, so a driver's line simply stops where they retired.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 10,
+    "w": 12,
+    "h": 10
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "showPoints": "never",
+      "fillOpacity": 0,
+      "spanNulls": true
+     },
+     "decimals": 0,
+     "min": 1,
+     "max": 22
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "NOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PIA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LEC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "VER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "RUS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ANT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALB"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SAI"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "STR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "GAS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "COL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HUL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "OCO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BEA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LAW"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LIN"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "xField": "lap\\tla",
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "asc"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT lap, tla, position\nFROM flechtwerk.f1_laps\nWHERE session_key = ${session} AND racing_number IN (${drivers}) AND position IS NOT NULL\nORDER BY lap"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "rowField": "lap",
+      "columnField": "tla",
+      "valueField": "position"
+     }
+    },
+    {
+     "id": "convertFieldType",
+     "options": {
+      "conversions": [
+       {
+        "targetField": "lap\\tla",
+        "destinationType": "number"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "trend",
+   "title": "Rolling 5-Lap Pace (Clean Laps, s)",
+   "description": "A five-lap moving average over clean laps only, so the line reflects the car rather than traffic and cautions. The window function runs in ClickHouse; nothing about it needed the stream to be buffered.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 12,
+    "h": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "suffix:s",
+     "decimals": 3,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "showPoints": "never",
+      "fillOpacity": 0,
+      "spanNulls": true
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "NOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PIA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LEC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "VER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "RUS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ANT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALB"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SAI"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "STR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "GAS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "COL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HUL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "OCO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BEA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LAW"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LIN"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "xField": "lap\\tla",
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "asc"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT lap, tla, round(avg(lap_ms) OVER (PARTITION BY tla ORDER BY lap\n                       ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) / 1000, 3) AS pace_s\nFROM flechtwerk.f1_laps\nWHERE session_key = ${session} AND racing_number IN (${drivers})\n  AND clean AND lap_ms IS NOT NULL\nORDER BY lap"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "rowField": "lap",
+      "columnField": "tla",
+      "valueField": "pace_s"
+     }
+    },
+    {
+     "id": "convertFieldType",
+     "options": {
+      "conversions": [
+       {
+        "targetField": "lap\\tla",
+        "destinationType": "number"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "table",
+   "title": "Pit Loss — The Strategist's Ledger",
+   "description": "Total time spent in the pit lane per driver. This is the currency a strategy is paid in: one fewer stop is ~22 s, which is roughly a quarter of a lap at most circuits.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 20,
+    "w": 12,
+    "h": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 2
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*_s$"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "stops"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "total_pit_lane_s"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "gradient"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "green"
+          },
+          {
+           "value": 45,
+           "color": "yellow"
+          },
+          {
+           "value": 70,
+           "color": "orange"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "total_pit_lane_s",
+      "desc": false
+     }
+    ]
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT d.tla AS drv, count() AS stops,\n       round(avg(p.stationary_s), 2) AS avg_stationary_s,\n       round(avg(p.pit_lane_s), 2) AS avg_pit_lane_s,\n       round(sum(p.pit_lane_s), 2) AS total_pit_lane_s\nFROM flechtwerk.f1_pit_stops AS p\nLEFT JOIN (SELECT racing_number, tla FROM flechtwerk.f1_drivers FINAL\n           WHERE session_key = ${session}) AS d USING (racing_number)\nWHERE p.session_key = ${session}\nGROUP BY drv\nORDER BY total_pit_lane_s"
+    }
+   ]
+  }
+ ]
+}

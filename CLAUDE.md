@@ -30,7 +30,7 @@ uv run poe cov              # every tier + coverage report
 uv run poe setup-<example>  # create topics / seed config / apply schema
 uv run poe run-<example>    # run one example against the shared stack
 uv run poe <example>        # quickstart: setup + run in one command, for the
-                            # self-contained examples (adsb, chaos, fermentation,
+                            # self-contained examples (adsb, chaos, f1, fermentation,
                             # gdelt, gtfs, odds, smard, wildfire); clickhouse_sink
                             # has none — it consumes example 1's output
 ```
@@ -65,7 +65,8 @@ file self-contained and re-runnable. Kafka persists across restarts (the
 scrapes host-run stages via `host.docker.internal:<port>`. Grafana provisions
 datasources + dashboards under `grafana/`: a per-example dashboard for the
 examples that ship one (adsb ships two — `adsb-flight-tracker` and
-`adsb-aviation-events` — plus fermentation), and the shared `observability`
+`adsb-aviation-events` — and f1 ships three — `f1-live-timing`, `f1-strategy`
+and `f1-season` — plus fermentation), and the shared `observability`
 and `stream-data`.
 
 Stages run **on the host** (`uv run poe run-<example>`) and connect to
@@ -136,7 +137,7 @@ names a leader before the broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`; the sink's ops key is `sink`) — and one
+`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`, `f1`; the sink's ops key is `sink`) — and one
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …). The two are
 **not independent**: the key is the *first token of the folder*, i.e. of
 snake_case(title) — `odds_arbitrage_radar` → `odds`, `wildfire_watch` → `wildfire`. Every
@@ -158,7 +159,7 @@ conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor
 `9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
 gtfs ingest + `9113` gtfs delays + `9114` gtfs loader, `9115` smard ingest + `9116`
 smard mix, `9117` odds polymarket + `9118` odds kalshi + `9119` odds radar, `9120` wildfire ingest +
-`9121` wildfire tracker; the chaos harness runs
+`9121` wildfire tracker, `9122` f1 ingest + `9123` f1 timing; the chaos harness runs
 metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
 data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
 companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
@@ -221,7 +222,40 @@ Natural-Earth land grid (267 cells, nothing south of 60°S) quadtree-split above
 detections/24 h down to 1.25°, counted from FIRMS' *keyless public* daily global CSVs so tiling
 spends no quota — into a few hundred ordinary `world-*` config records; the stages have no
 world-specific code, re-running re-tiles and tombstones stale tiles, and the seasonal burn-belt
-drift is handled by re-running, not by the stages.
+drift is handled by re-running, not by the stages. **F1 Live Timing** (`f1`) is the
+**append-only-file** case and the repo's only *deterministic, replayable* example: Formula 1's public
+live-timing archive records every session as a directory of line-framed `<Feed>.jsonStream` files, so
+`ingest` keeps a **per-feed byte offset** as its resume cursor — which makes backfilling a finished
+file, tailing a growing one, and recovering from a crash literally the same code path, and makes an
+outage cost timeliness but never data. Config records on `f1-sessions` are keyed by the session
+**path** (`2026/2026-07-26_Hungarian_Grand_Prix/2026-07-26_Race/`), which is also the Kafka key of
+every record the example produces; `request.py` seeds them by `season` / `session <path>` / `follow`,
+and the **follow** target is the repo's one extractor that *produces onto its own config topic*
+(legal by construction: config topics are consumed group-less and read_committed). Each poll
+range-reads a self-tuning chunk of all 14 feeds (16 with `telemetry`, which gates the two big `.z`
+feeds), frames whole lines, and emits them under a **watermark** — the minimum offset every feed is
+known to be complete to — because the board's flag join would otherwise tag laps with a `TrackStatus`
+it has not read yet. Pure cores: `tape.py` (BOM, CRLF framing, raw-deflate inflate, the `t0` anchor,
+frontier/watermark/merge) and `board.py` (patch merge, gap/duration parsing, lap detection, the flag
+severity order). Two archive traps are load-bearing: **keyframes hold the FINAL state** (so replay
+never reads one for data — `ArchiveStatus.json` is the completion probe precisely because its
+`.jsonStream` twin says `Generating` forever), and **collections switch from array to index-keyed
+dict mid-stream, per field** (`board.indexed`). `t0` is anchored ONCE per session from the first
+`Heartbeat` line and **persisted as part of the cursor** — a later beat cannot be used (at the tape's
+end the offsets freeze while the beats tick, so the implied `t0` walks 1200 s forward), and a session
+with no anchor-capable feed is marked `done` rather than emitted with invented times. The `timing`
+transformer folds the feed's *partial patches* into `drivers{}` keyed state and emits **only when a
+driver's projection actually changed** (88 % of `TimingData` lines move nothing but a marshalling
+segment), producing `f1-status` (standings/weather/clock/heartbeat), `f1-events`
+(lap/pit/track_period/race_control/overtake/championship + the session and driver dimensions) and
+`f1-telemetry` (car/pos); the session's bucket is tombstoned on `SessionStatus = Ends`, not on
+`Finalised` (minutes of tape follow the latter). The tape topic itself is **deliberately not sunk to
+ClickHouse** — it is Kafka-durable and the board is re-runnable over it under a fresh application id.
+All four data topics are created with **`retention.ms=-1`**, which is correctness and not hoarding:
+backfilled records carry event times months in the past and Kafka's time retention judges a segment
+by its max record timestamp. The three dashboards share one mechanism — an **as-of cursor** in plain
+SQL (`event_time <= cursor`, no lower bound) that makes live, scrub, and animated replay the same
+query with no timestamp ever rewritten.
 
 ## Conventions carried from the framework (keep these)
 

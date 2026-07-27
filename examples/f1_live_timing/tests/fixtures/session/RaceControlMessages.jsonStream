@@ -1,0 +1,2 @@
+﻿00:01:25.000{"Messages":[{"Utc":"2026-07-26T12:10:37","Lap":1,"Category":"Flag","Flag":"GREEN","Scope":"Track","Message":"GREEN LIGHT - PIT EXIT OPEN"}]}
+00:02:05.000{"Messages":{"1":{"Utc":"2026-07-26T12:11:17","Lap":2,"Category":"Flag","Flag":"YELLOW","Scope":"Sector","Sector":19,"Message":"YELLOW IN TRACK SECTOR 19"}}}

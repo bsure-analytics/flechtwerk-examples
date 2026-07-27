@@ -1,0 +1,2225 @@
+{
+ "uid": "flechtwerk-f1",
+ "title": "Flechtwerk — F1 Live Timing",
+ "description": "A pit wall over the live-timing tape. Every state panel computes an AS-OF CURSOR and filters event_time <= cursor with no lower bound; series panels additionally apply the time range. That one mechanism gives three modes with no special cases: a now-relative range with auto-refresh is LIVE, an absolute range end dragged through a past race is SCRUB, and mode=replay advances a virtual clock at ${speed}×. No timestamp is ever rewritten — only the cursor moves. Open a session from 'Flechtwerk — F1 Season' to get its window and replay link filled in.",
+ "tags": [
+  "flechtwerk",
+  "f1"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "10s",
+ "time": {
+  "from": "now-3h",
+  "to": "now"
+ },
+ "timepicker": {},
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "session",
+    "label": "Session",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "query": {
+     "refId": "session",
+     "editorType": "sql",
+     "rawSql": "SELECT session_key AS __value, label AS __text FROM flechtwerk.f1_sessions FINAL ORDER BY start_utc DESC, session_key DESC"
+    },
+    "refresh": 2,
+    "includeAll": false,
+    "multi": false,
+    "sort": 0,
+    "current": {},
+    "description": "Which session's tape to read. Newest first, so a live weekend surfaces at the top. The value is the archive's numeric session key — the one column every table is filtered by."
+   },
+   {
+    "type": "query",
+    "name": "drivers",
+    "label": "Drivers",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "query": {
+     "refId": "drivers",
+     "editorType": "sql",
+     "rawSql": "SELECT DISTINCT racing_number AS __value, tla AS __text FROM flechtwerk.f1_drivers FINAL WHERE session_key = ${session} ORDER BY tla"
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "sort": 0,
+    "current": {},
+    "allValue": null
+   },
+   {
+    "type": "custom",
+    "name": "mode",
+    "label": "Mode",
+    "query": "wall,replay",
+    "includeAll": false,
+    "multi": false,
+    "options": [
+     {
+      "text": "wall",
+      "value": "wall",
+      "selected": true
+     },
+     {
+      "text": "replay",
+      "value": "replay",
+      "selected": false
+     }
+    ],
+    "current": {
+     "text": "wall",
+     "value": "wall"
+    },
+    "description": "wall: the cursor is the end of the dashboard's time range — a now-relative range with auto-refresh IS live mode, and dragging an absolute range end through a past race IS scrub mode. replay: a virtual clock advances the cursor at ${speed}× from ${race_start_ms}. Nothing is ever re-timestamped; only the cursor moves."
+   },
+   {
+    "type": "custom",
+    "name": "speed",
+    "label": "Replay ×",
+    "query": "1,2,5,10,25",
+    "includeAll": false,
+    "multi": false,
+    "options": [
+     {
+      "text": "1",
+      "value": "1",
+      "selected": false
+     },
+     {
+      "text": "2",
+      "value": "2",
+      "selected": false
+     },
+     {
+      "text": "5",
+      "value": "5",
+      "selected": true
+     },
+     {
+      "text": "10",
+      "value": "10",
+      "selected": false
+     },
+     {
+      "text": "25",
+      "value": "25",
+      "selected": false
+     }
+    ],
+    "current": {
+     "text": "5",
+     "value": "5"
+    }
+   },
+   {
+    "type": "textbox",
+    "name": "play_ms",
+    "label": "Play From (ms)",
+    "query": "0",
+    "current": {
+     "text": "0",
+     "value": "0"
+    },
+    "options": [],
+    "description": "Wall-clock epoch ms at which a replay was started — filled by the season dashboard's '▶ replay' link. Only read when mode = replay."
+   },
+   {
+    "type": "textbox",
+    "name": "race_start_ms",
+    "label": "Race Start (ms)",
+    "query": "0",
+    "current": {
+     "text": "0",
+     "value": "0"
+    },
+    "options": [],
+    "description": "Event-time epoch ms the replay's virtual clock starts from — filled by the season dashboard's '▶ replay' link. Only read when mode = replay."
+   }
+  ]
+ },
+ "annotations": {
+  "list": [
+   {
+    "name": "Flags",
+    "enable": true,
+    "hide": false,
+    "iconColor": "rgba(255, 200, 0, 0.6)",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "target": {
+     "refId": "Anno",
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT toUnixTimestamp64Milli(started_at) AS time, toUnixTimestamp64Milli(coalesce(ended_at, now64(3))) AS timeEnd, label AS text FROM flechtwerk.f1_track_status FINAL WHERE session_key = ${session} AND label != 'AllClear' ORDER BY started_at"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "table",
+   "title": "Race Wall — The Leaderboard, as of the Cursor",
+   "description": "One row per driver, each field the LATEST value at or before the cursor (argMax over event_time). There is deliberately no lower time bound: a driver's last update may predate the visible range, and a leaderboard that forgets a car in the pits is worse than useless. `gap`/`intvl` are the feed's own strings — '+1.234' seconds, '1L' a lap down, 'LAP 24' for the leader — kept verbatim because that is what a pit wall reads; the parsed seconds live alongside them. `catching` is the upstream's own judgement that this car is closing.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 17,
+    "h": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      }
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pos"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 48
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "drv"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 60
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "num"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 52
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gap"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 80
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "intvl"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 80
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "intvl_s"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "last_lap"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 90
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "best_lap"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 90
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "s1"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       },
+       {
+        "id": "custom.width",
+        "value": 72
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "s2"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       },
+       {
+        "id": "custom.width",
+        "value": 72
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "s3"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       },
+       {
+        "id": "custom.width",
+        "value": 72
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "catching"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 78
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "true": {
+            "text": "▲ closing",
+            "color": "green",
+            "index": 0
+           },
+           "false": {
+            "text": "",
+            "index": 1
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "tyre"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 80
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "basic"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "SOFT": {
+            "text": "SOFT",
+            "color": "red",
+            "index": 0
+           },
+           "MEDIUM": {
+            "text": "MEDIUM",
+            "color": "yellow",
+            "index": 1
+           },
+           "HARD": {
+            "text": "HARD",
+            "color": "#cccccc",
+            "index": 2
+           },
+           "INTERMEDIATE": {
+            "text": "INTERMEDIATE",
+            "color": "green",
+            "index": 3
+           },
+           "WET": {
+            "text": "WET",
+            "color": "blue",
+            "index": 4
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "age"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 55
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "stint"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 55
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "stops"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 60
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "top_kph"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 70
+       },
+       {
+        "id": "unit",
+        "value": "velocitykmh"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "status"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 88
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "basic"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "PIT": {
+            "text": "PIT",
+            "color": "blue",
+            "index": 0
+           },
+           "OUT": {
+            "text": "OUT",
+            "color": "purple",
+            "index": 1
+           },
+           "STOPPED": {
+            "text": "STOPPED",
+            "color": "orange",
+            "index": 2
+           },
+           "RETIRED": {
+            "text": "RETIRED",
+            "color": "red",
+            "index": 3
+           },
+           "": {
+            "text": "",
+            "index": 4
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "transparent"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT argMax(position, event_time)               AS pos,\n       argMax(tla, event_time)                    AS drv,\n       racing_number                              AS num,\n       argMax(gap_raw, event_time)                AS gap,\n       argMax(interval_raw, event_time)           AS intvl,\n       argMax(interval_s, event_time)             AS intvl_s,\n       argMax(catching, event_time)               AS catching,\n       if(argMax(last_lap_ms, event_time) IS NULL, '', concat(toString(intDiv(argMax(last_lap_ms, event_time), 60000)), ':',\n       leftPad(toString(intDiv(argMax(last_lap_ms, event_time) % 60000, 1000)), 2, '0'), '.',\n       leftPad(toString(argMax(last_lap_ms, event_time) % 1000), 3, '0'))) AS last_lap,\n       if(argMax(best_lap_ms, event_time) IS NULL, '', concat(toString(intDiv(argMax(best_lap_ms, event_time), 60000)), ':',\n       leftPad(toString(intDiv(argMax(best_lap_ms, event_time) % 60000, 1000)), 2, '0'), '.',\n       leftPad(toString(argMax(best_lap_ms, event_time) % 1000), 3, '0'))) AS best_lap,\n       argMax(sector1_ms, event_time) / 1000      AS s1,\n       argMax(sector2_ms, event_time) / 1000      AS s2,\n       argMax(sector3_ms, event_time) / 1000      AS s3,\n       argMax(tyre_compound, event_time)          AS tyre,\n       argMax(tyre_age, event_time)               AS age,\n       argMax(stint, event_time)                  AS stint,\n       argMax(pit_count, event_time)              AS stops,\n       argMax(speed_st, event_time)               AS top_kph,\n       multiIf(argMax(retired, event_time), 'RETIRED',\n               argMax(stopped, event_time), 'STOPPED',\n               argMax(in_pit, event_time),  'PIT',\n               argMax(pit_out, event_time), 'OUT', '')  AS status\nFROM flechtwerk.f1_standings\nWHERE session_key = ${session} AND event_time <= cursor\nGROUP BY racing_number\nHAVING pos > 0\nORDER BY pos"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Track Status",
+   "description": "The flag state at the cursor, from the 585-byte TrackStatus feed the board folds into every leaderboard row and every lap. Twelve records decide whether a whole race's lap times mean anything.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 17,
+    "y": 0,
+    "w": 7,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "AllClear": {
+         "text": "GREEN",
+         "color": "green",
+         "index": 0
+        },
+        "Yellow": {
+         "text": "YELLOW",
+         "color": "yellow",
+         "index": 1
+        },
+        "VSCDeployed": {
+         "text": "VSC",
+         "color": "orange",
+         "index": 2
+        },
+        "VSCEnding": {
+         "text": "VSC ENDING",
+         "color": "semi-dark-orange",
+         "index": 3
+        },
+        "SCDeployed": {
+         "text": "SAFETY CAR",
+         "color": "orange",
+         "index": 4
+        },
+        "Red": {
+         "text": "RED FLAG",
+         "color": "red",
+         "index": 5
+        }
+       }
+      }
+     ],
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "value": null,
+        "color": "text"
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "/.*/",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT argMax(label, event_time) AS flag\nFROM flechtwerk.f1_track_status\nWHERE session_key = ${session} AND started_at <= cursor"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Lap / Session Clock",
+   "description": "From the LapCount and ExtrapolatedClock feeds. `total_laps` is sent ONCE, with the first LapCount record, so the board folds it into state rather than reading the latest patch — which is why this panel still knows the race distance on lap 60. LapCount is a race-only feed: in practice and qualifying these read empty, by nature.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 17,
+    "y": 4,
+    "w": 7,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "remaining_s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none",
+    "textMode": "value_and_name",
+    "justifyMode": "center",
+    "orientation": "horizontal"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT argMax(lap, event_time) AS lap, argMax(total_laps, event_time) AS total_laps,\n       argMax(remaining_s, event_time) AS remaining_s\nFROM flechtwerk.f1_clock\nWHERE session_key = ${session} AND event_time <= cursor"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Tape Freshness",
+   "description": "Seconds between the cursor and the last Heartbeat line before it. The Heartbeat feed beats every ~15 s no matter what is happening on track, so this distinguishes 'the session is under a red flag and nothing is moving' from 'the ingest stage died' — a distinction the leaderboard alone cannot make. During a backfill or a scrub it reads ~15 s; while live it also carries the poll interval and the CDN's own delay.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 17,
+    "y": 8,
+    "w": 7,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "decimals": 0,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "value": null,
+        "color": "green"
+       },
+       {
+        "value": 60,
+        "color": "yellow"
+       },
+       {
+        "value": 300,
+        "color": "red"
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "center"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT dateDiff('second', max(event_time), cursor) AS behind_s\nFROM flechtwerk.f1_heartbeats\nWHERE session_key = ${session} AND event_time <= cursor"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Gap to the Leader (s)",
+   "description": "Every gap update the feed sent, as it sent it. This is a *series* panel, so unlike the leaderboard above it does apply the dashboard's time range — the shape of a race is a window, not an instant. Lapped cars simply drop out: their gap is expressed in laps, and the board deliberately keeps laps and seconds in separate columns rather than inventing a duration for them.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "suffix:s",
+     "decimals": 3,
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "showPoints": "never",
+      "fillOpacity": 0,
+      "spanNulls": true
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "NOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PIA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LEC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "VER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "RUS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ANT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALB"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SAI"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "STR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "GAS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "COL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HUL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "OCO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BEA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LAW"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LIN"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "asc"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 0,
+     "rawSql": "SELECT event_time AS time, tla, gap_s\nFROM flechtwerk.f1_standings\nWHERE session_key = ${session} AND racing_number IN (${drivers})\n  AND gap_s IS NOT NULL AND $__timeFilter(event_time)\nORDER BY event_time"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Lap Times (s) — Flags Annotated",
+   "description": "One point per completed lap. The yellow regions are the flag periods the board derived from TrackStatus, so the slow laps explain themselves: a lap behind a virtual safety car is not a lap. Every point also carries `clean` and `track_status` columns in the table below, which is what a pace analysis filters on rather than eyeballing this.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 9
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "suffix:s",
+     "decimals": 3,
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 4,
+      "lineWidth": 1,
+      "showPoints": "always",
+      "fillOpacity": 0,
+      "spanNulls": false
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "NOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PIA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F47600"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LEC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAM"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#ED1131"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "VER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HAD"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#4781D7"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "RUS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ANT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00D7B6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALB"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SAI"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1868DB"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ALO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "STR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#229971"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "GAS"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "COL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#00A1E8"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "HUL"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOR"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#F50537"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "OCO"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BEA"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#9C9FA2"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LAW"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "LIN"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#6C98FF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PER"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "BOT"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#909090"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "asc"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 0,
+     "rawSql": "SELECT event_time AS time, tla, lap_ms / 1000 AS lap_s\nFROM flechtwerk.f1_laps\nWHERE session_key = ${session} AND racing_number IN (${drivers})\n  AND lap_ms IS NOT NULL AND $__timeFilter(event_time)\nORDER BY event_time"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "table",
+   "title": "Battle Radar — Within One Second of the Car Ahead",
+   "description": "The interesting part of a leaderboard is who is *closing*. `catching` comes straight from the feed (IntervalToPositionAhead.Catching), so no series has to be differentiated to find it. Rows appear and vanish as the cursor moves — this is the leaderboard state, filtered, not a separate stream.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gap_s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       },
+       {
+        "id": "custom.width",
+        "value": 95
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "gradient"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "red"
+          },
+          {
+           "value": 0.4,
+           "color": "orange"
+          },
+          {
+           "value": 0.8,
+           "color": "green"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "catching"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 80
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "true": {
+            "text": "▲",
+            "color": "green",
+            "index": 0
+           },
+           "false": {
+            "text": "",
+            "index": 1
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pos"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 50
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "drv"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 60
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "intvl"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 80
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "age"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 55
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT pos, drv, iv.1 AS intvl, round(iv.2, 3) AS gap_s,\n       catching, tyre, age\nFROM (\n    SELECT argMax(position, event_time)                     AS pos,\n           argMax(tla, event_time)                          AS drv,\n           argMax((interval_raw, interval_s), event_time)   AS iv,\n           argMax(catching, event_time)                     AS catching,\n           argMax(tyre_compound, event_time)                AS tyre,\n           argMax(tyre_age, event_time)                     AS age,\n           argMax(retired, event_time)                      AS retired\n    FROM flechtwerk.f1_standings\n    WHERE session_key = ${session} AND event_time <= cursor\n    GROUP BY racing_number)\nWHERE iv.1 LIKE '+%' AND iv.2 IS NOT NULL AND iv.2 < 1.0 AND NOT retired AND pos > 0\nORDER BY pos"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "type": "table",
+   "title": "Pit Stops",
+   "description": "`stationary_s` is what the crew is judged on; `pit_lane_s` is what the strategist pays. The difference — ~20 s of pit-lane speed limit — is the real cost of a stop and the number that decides a one-stop from a two-stop. Each row is event-timed by the stop's own upstream Timestamp, not by the tape offset that delivered it.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 21,
+    "w": 9,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "decimals": 1
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*_s$"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "suffix:s"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "lap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "stationary_s"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "gradient"
+        }
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "green"
+          },
+          {
+           "value": 3.0,
+           "color": "yellow"
+          },
+          {
+           "value": 5.0,
+           "color": "red"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT p.event_time AS time, d.tla AS drv, p.lap,\n       p.stationary_s, p.pit_lane_s\nFROM flechtwerk.f1_pit_stops AS p\nLEFT JOIN (SELECT racing_number, tla FROM flechtwerk.f1_drivers FINAL\n           WHERE session_key = ${session}) AS d USING (racing_number)\nWHERE p.session_key = ${session}\nORDER BY p.event_time DESC"
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "type": "table",
+   "title": "Race Control",
+   "description": "Every message race control broadcast, newest first — flags, safety cars, DRS, penalties. The RaceControlMessages feed opens the session with an ARRAY of the messages so far and switches to index-keyed DICTS a few lines in; the board accepts both, which is why this list has no gap at the transition.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 29,
+    "w": 13,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "time"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 175
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "lap"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 60
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "flag"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background",
+         "mode": "basic"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "GREEN": {
+            "color": "green",
+            "index": 0
+           },
+           "YELLOW": {
+            "color": "yellow",
+            "index": 1
+           },
+           "DOUBLE YELLOW": {
+            "color": "orange",
+            "index": 2
+           },
+           "RED": {
+            "color": "red",
+            "index": 3
+           },
+           "CHEQUERED": {
+            "color": "text",
+            "index": 4
+           },
+           "CLEAR": {
+            "color": "green",
+            "index": 5
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "value": null,
+           "color": "transparent"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "SELECT event_time AS time, message_text AS message, flag, lap\nFROM flechtwerk.f1_race_control\nWHERE session_key = ${session}\nORDER BY event_time DESC"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Weather",
+   "description": "~one sample a minute. Track temperature runs 20 °C above the air and is the number that actually decides tyre behaviour. Every field arrives from the feed as a STRING ('30.0'), which is why the board coerces rather than casts.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 17,
+    "y": 21,
+    "w": 7,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "showPoints": "never",
+      "fillOpacity": 0
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*temp.*"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "celsius"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "humidity"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "custom.axisPlacement",
+        "value": "right"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "wind_speed"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "velocityms"
+       },
+       {
+        "id": "custom.axisPlacement",
+        "value": "right"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 0,
+     "rawSql": "SELECT event_time AS time, air_temp, track_temp, humidity, wind_speed\nFROM flechtwerk.f1_weather\nWHERE session_key = ${session} AND $__timeFilter(event_time)\nORDER BY event_time"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "bargauge",
+   "title": "Speed Trap (km/h) — Best So Far",
+   "description": "The fastest reading each driver has posted at the longest straight's trap, as of the cursor. A `max` rather than an argMax: unlike a gap, a top speed is a session record and not a state.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 13,
+    "y": 29,
+    "w": 5,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "velocitykmh",
+     "decimals": 0,
+     "min": 250,
+     "color": {
+      "mode": "continuous-GrYlRd"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": true
+    },
+    "displayMode": "gradient",
+    "orientation": "horizontal",
+    "showUnfilled": true,
+    "minVizWidth": 8,
+    "minVizHeight": 10,
+    "namePlacement": "left"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT argMax(tla, event_time) AS drv, max(speed_st) AS top_kph\nFROM flechtwerk.f1_standings\nWHERE session_key = ${session} AND event_time <= cursor AND speed_st IS NOT NULL\nGROUP BY racing_number\nORDER BY top_kph DESC\nLIMIT 12"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {}
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "type": "xychart",
+   "title": "Track Map (Telemetry-Gated)",
+   "description": "Sixty seconds of position samples up to the cursor, coloured by age — so the fading tail draws the circuit and the bright heads are the cars. Coordinates are the upstream's own frame: no projection, no documented origin, no units, which is fine for the one thing this is for. Requires the session to have been requested WITH telemetry; the two .z feeds are two thirds of the download, so `--no-telemetry` skips them and this stays empty. Cars sitting in the garage report exactly (0, 0) and are filtered out.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 29,
+    "w": 6,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "show": "points",
+      "axisPlacement": "hidden"
+     },
+     "color": {
+      "mode": "continuous-YlRd"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "mapping": "auto",
+    "series": [
+     {
+      "pointSize": {
+       "fixed": 4
+      }
+     }
+    ],
+    "tooltip": {
+     "mode": "single"
+    },
+    "legend": {
+     "showLegend": false,
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "queryType": "table",
+     "format": 1,
+     "rawSql": "WITH if('${mode}' = 'replay',\n        fromUnixTimestamp64Milli(toInt64(${race_start_ms}\n          + (toUnixTimestamp64Milli(now64(3)) - ${play_ms}) * ${speed})),\n        fromUnixTimestamp64Milli(toInt64(${__to}))) AS cursor\nSELECT x, y, dateDiff('second', event_time, cursor) AS age_s\nFROM flechtwerk.f1_positions\nWHERE session_key = ${session} AND status = 'OnTrack'\n  AND event_time <= cursor AND event_time > cursor - INTERVAL 60 SECOND\n  AND (x != 0 OR y != 0)\nORDER BY age_s DESC"
+    }
+   ]
+  }
+ ]
+}

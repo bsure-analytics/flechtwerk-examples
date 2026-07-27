@@ -108,6 +108,10 @@ setup-wildfire = { cmd = "python -m examples.wildfire_watch.setup", help = "Crea
 request-wildfire = { cmd = "python -m examples.wildfire_watch.request", help = "Validate + request a region to watch: uv run poe request-wildfire \"Attica, Greece\" [west south east north] | world (or: retire <slug> | retire world)" }
 run-wildfire-ingest = { cmd = "python -m examples.wildfire_watch ingest", help = "Run Wildfire Watch stage 1: poll both VIIRS satellites -> wildfire-detections (needs FIRMS_MAP_KEY)" }
 run-wildfire-tracker = { cmd = "python -m examples.wildfire_watch tracker", help = "Run Wildfire Watch stage 2: cluster detections into persistent fires -> wildfire-status / wildfire-events" }
+setup-f1 = { cmd = "python -m examples.f1_live_timing.setup", help = "Create the F1 topics and apply the ClickHouse schema (no session seeded — use request-f1)" }
+request-f1 = { cmd = "python -m examples.f1_live_timing.request", help = "Choose sessions to ingest: uv run poe request-f1 season [2026] | follow [2026] | session <path> (or: retire <path|season-2026>); no args lists them" }
+run-f1-ingest = { cmd = "python -m examples.f1_live_timing ingest", help = "Run F1 stage 1: read/tail the live-timing tape -> f1-timing" }
+run-f1-timing = { cmd = "python -m examples.f1_live_timing timing", help = "Run F1 stage 2: fold timing patches into the board -> f1-status / f1-events / f1-telemetry" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -269,6 +273,28 @@ wait
 [tool.poe.tasks.wildfire]
 help = "Quickstart: set up Wildfire Watch topics/schema, then run both stages (restart-on-crash). Request regions with request-wildfire."
 sequence = ["setup-wildfire", "run-wildfire"]
+
+[tool.poe.tasks.run-f1]
+help = "Run both F1 Live Timing stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
+# The same poor-man's supervisor as run-adsb/run-gdelt/run-gtfs/run-smard/run-odds/run-wildfire (see
+# run-adsb's notes on the process-group / Ctrl-C handling): plain `python -m` children in this
+# shell's process group, and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is
+# orphaned — with `trap "" TERM` so this shell survives its own `kill 0` and exits 0 for poe. Each
+# stage runs in its own restart loop. Restarting costs nothing here and that is the example's point:
+# ingest resumes from its committed per-feed byte cursors, so an outage costs timeliness and never
+# data, and the board restores its leaderboard from the changelog.
+shell = """
+trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
+supervise() { until "$@"; do echo "[run-f1] $* exited $? — restarting in 10s"; sleep 10; done; }
+for stage in ingest timing; do
+  supervise python -m examples.f1_live_timing $stage &
+done
+wait
+"""
+
+[tool.poe.tasks.f1]
+help = "Quickstart: set up F1 topics/schema, then run both stages (restart-on-crash). Choose sessions with request-f1."
+sequence = ["setup-f1", "run-f1"]
 
 [tool.poe.tasks.cov]
 help = "Run every tier with coverage, then print the report"
