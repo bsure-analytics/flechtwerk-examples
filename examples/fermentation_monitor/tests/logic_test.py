@@ -43,9 +43,15 @@ def test_relay_poison_drops_a_payload_without_gravity() -> None:
 
 # --- the monitor ---
 
+def raising(error):
+    """The default `Stage.on_invalid_message` policy, as a bare handler."""
+    raise error
+
+
 def _reading(gravity: float, *, offset: int = 0):
     value = {"batch": "batch-42", "gravity": gravity, "temperature": 20.0, "at": "2026-07-17T12:00:00Z"}
-    return parse_message(make_record(key="batch-42", value=json.dumps(value), topic=READINGS_TOPIC, offset=offset))
+    return parse_message(
+        make_record(key="batch-42", value=json.dumps(value), topic=READINGS_TOPIC, offset=offset), raising)
 
 
 async def _run_curve(gravities: list[float]):

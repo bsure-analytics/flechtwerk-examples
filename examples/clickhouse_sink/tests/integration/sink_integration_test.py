@@ -49,7 +49,8 @@ async def test_reinserting_the_same_batch_is_idempotent(clickhouse: dict[str, st
     try:
         for _ in range(2):  # process the same batch twice — at-least-once reprocessing
             for record in records:
-                async for _ in sink.transform(parse_message(record), State()):
+                # Decoding is mediated by the stage's own policy, exactly as the runner does it.
+                async for _ in sink.transform(parse_message(record, sink.on_invalid_message), State()):
                     pass  # pragma: no cover — a pure sink yields nothing
     finally:
         await writer.aclose()

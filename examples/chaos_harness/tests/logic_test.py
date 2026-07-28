@@ -13,9 +13,14 @@ from examples.chaos_harness.attributes import COUNT, N, SEQ
 from examples.chaos_harness.transformer import INPUT_TOPIC, OUTPUT_TOPIC, STATE_KEY, sequencer
 
 
+def raising(error):
+    """The default `Stage.on_invalid_message` policy, as a bare handler."""
+    raise error
+
+
 def _msg(n: int, *, offset: int = 0):
     return parse_message(make_record(
-        key=STATE_KEY, value=json.dumps({"n": n}), topic=INPUT_TOPIC, offset=offset))
+        key=STATE_KEY, value=json.dumps({"n": n}), topic=INPUT_TOPIC, offset=offset), raising)
 
 
 async def _run(msg, state):

@@ -18,9 +18,14 @@ POSITION = {
 TOMBSTONE = {"hex": "gone99", "requested_region": "london", "polled_at": "2026-07-17T12:00:00Z", "is_deleted": 1}
 
 
+def raising(error):
+    """The default `Stage.on_invalid_message` policy, as a bare handler."""
+    raise error
+
+
 def _msg(payload: dict, *, partition: int = 0, offset: int = 0):
     return parse_message(make_record(
-        topic=INPUT_TOPIC, partition=partition, offset=offset, value=json.dumps(payload)))
+        topic=INPUT_TOPIC, partition=partition, offset=offset, value=json.dumps(payload)), raising)
 
 
 def test_position_projects_to_a_row_with_provenance() -> None:
