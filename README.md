@@ -4,7 +4,7 @@
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
   <a href="https://bsure-analytics.github.io/flechtwerk/"><img src="https://img.shields.io/badge/docs-online-6d2530" alt="Documentation"></a>
   <a href="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml"><img src="https://github.com/bsure-analytics/flechtwerk-examples/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <a href="https://pypi.org/project/flechtwerk/0.8.0/"><img src="https://img.shields.io/badge/flechtwerk-0.8.0-6d2530" alt="Pinned flechtwerk version"></a>
+  <a href="https://pypi.org/project/flechtwerk/"><img src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbsure-analytics%2Fflechtwerk-examples%2Fmain%2Fpyproject.toml&search=flechtwerk%5C%5Bmqtt%5C%5D%3D%3D%28%5B0-9.%5D%2B%29&replace=%241&label=flechtwerk&color=6d2530" alt="Pinned Flechtwerk version"></a>
   <img src="https://img.shields.io/badge/python-3.14-blue.svg" alt="Python 3.14">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="assets/flechtwerk-ornament.svg" alt="Flechtwerk — Celtic interlace" width="100%" height="60">
