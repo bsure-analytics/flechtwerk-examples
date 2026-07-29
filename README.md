@@ -101,7 +101,8 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 | Grafana | <http://localhost:3000> | provisioned dashboards (anonymous access) |
 
 Grafana provisions dashboards tagged `flechtwerk`: **Observability** (the
-`flechtwerk_*` Prometheus metrics — throughput, record and state sizes against
+`flechtwerk_*` Prometheus metrics — throughput, undecodable records by topic and
+by what the invalid-message policy did with them, record and state sizes against
 the ~1 MiB record ceiling, latency, extractor poll cycles, MQTT, config store,
 transformer tasks & state restore, process health —
 filterable by example, stage, and client), **Stream Data**
@@ -116,10 +117,18 @@ Electricity Market** (the generation mix by source, day-ahead price into tomorro
 renewables share and CO₂ intensity, and a live corrections feed of revised values),
 **Odds Arbitrage Radar** (the net edge after fees per pair and direction, a
 closest-to-free-money leaderboard, gross vs. net, the two venues' YES asks, signals,
-and quote freshness), and **Wildfire Watch** (a fire map with markers sized by
+and quote freshness), **Wildfire Watch** (a fire map with markers sized by
 detection count and coloured by radiative power over the raw hotspot pixels, total
 FRP per region, the largest active fires, the ignition/merge/extinction log, and a
-poll-heartbeat panel that distinguishes "nothing burning" from "poller stopped").
+poll-heartbeat panel that distinguishes "nothing burning" from "poller stopped"),
+and the three **F1** dashboards — **F1 Live Timing** (the race wall: the
+leaderboard as of the cursor, track status, lap clock, tape freshness,
+gap-to-leader and lap times with flag annotations, the battle radar, pit stops,
+race control, weather, speed traps, a track map), **F1 Strategy** (stint timeline,
+tyre degradation, position by lap, rolling pace, the pit-loss ledger) and **F1
+Season** (every session on tape with one click to open or replay it, championship
+points, podiums, season tallies) — which share one as-of cursor so that live,
+scrub, and animated replay are the same query.
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
@@ -127,8 +136,8 @@ boundary loader, `9102` sink, `9103` fermentation monitor + `9104` fermentation
 bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `9111`
 GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader, `9115`
 SMARD ingest + `9116` SMARD mix, `9117` odds Polymarket + `9118` odds Kalshi + `9119`
-odds radar, `9120` wildfire ingest + `9121` wildfire tracker; the chaos harness runs
-metrics-off);
+odds radar, `9120` wildfire ingest + `9121` wildfire tracker, `9122` F1 ingest + `9123`
+F1 timing; the chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
