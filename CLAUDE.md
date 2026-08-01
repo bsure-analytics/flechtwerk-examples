@@ -18,22 +18,7 @@ rather than inventing parallel ones.
 
 ## Commands
 
-```bash
-uv sync                     # venv + pinned dependencies (Python 3.14)
-uv run poe up               # start the shared stack, wait until healthy
-uv run poe down             # stop the stack, preserving its volumes
-uv run poe clean            # stop the stack AND delete its volumes (full reset)
-uv run poe test             # unit tiers (pure-logic + runner-fake) — Docker-free
-uv run poe test-integration # integration tier — testcontainers (needs Docker)
-uv run poe test-all         # every tier (what CI runs)
-uv run poe cov              # every tier + coverage report
-uv run poe setup-<example>  # create topics / seed config / apply schema
-uv run poe run-<example>    # run one example against the shared stack
-uv run poe <example>        # quickstart: setup + run in one command, for the
-                            # self-contained examples (adsb, chaos, f1, fermentation,
-                            # gdelt, gtfs, odds, smard, wildfire); clickhouse_sink
-                            # has none — it consumes example 1's output
-```
+Task runner: poe. `uv run poe --help` lists every target with its help text.
 
 ## The shared stack
 
@@ -111,16 +96,7 @@ Unit tiers (1 + 2) must run **Docker-free**.
 Each example is a package under `examples/<name>/` — self-contained, with one
 deliberate exception: `clickhouse_sink` consumes example 1's output topic and
 imports its typed attributes (`examples.adsb_flight_tracker.attributes`) rather
-than redeclaring the wire schema, so the two can't drift:
-
-```
-examples/
-  _runner.py                        # shared: run(stage, ...) + dispatch({name: thunk})
-  _setup.py                         # shared ops helpers for setup.py (quiet_fresh_topic_produce_race)
-  <name>/
-    __init__.py  README.md  <stage>.py …  [attributes.py]  clickhouse.sql  __main__.py  setup.py
-    tests/{logic_test.py, runner_test.py, integration/<topic>_integration_test.py}
-```
+than redeclaring the wire schema, so the two can't drift.
 
 Each `<stage>.py` exports a module-level `stage` (an `Extractor`/`Transformer`);
 `__main__.py` is a thin dispatcher that maps a stage name to
@@ -154,108 +130,19 @@ poe targets are `setup-<key>` / `run-<key>[-<stage>]` / quickstart `<key>`; the
 Prometheus `example` label is the folder name. A README H1 is the display
 title, optionally followed by an em-dash tagline (`Chaos Harness — an
 Exactly-Once Proof`). An example's host metrics port follows the allocation in
-`prometheus/prometheus.yml` (`9101` adsb ingest + `9105` adsb enrich + `9106` adsb
-conflict + `9107` adsb boundary loader, `9102` sink, `9103` fermentation monitor +
-`9104` fermentation bridge, `9108`–`9111` gdelt ingest/coverage/stories/sink, `9112`
-gtfs ingest + `9113` gtfs delays + `9114` gtfs loader, `9115` smard ingest + `9116`
-smard mix, `9117` odds polymarket + `9118` odds kalshi + `9119` odds radar, `9120` wildfire ingest +
-`9121` wildfire tracker, `9122` f1 ingest + `9123` f1 timing; the chaos harness runs
-metrics-off — its rapid SIGKILL restarts would race to rebind a scrape port). The ADS-B example is a three-stage
-data pipeline (ingest extractor → enrich transformer → conflict transformer) plus a
-companion **boundary-loader extractor** (`boundaries.py`, `CountryLoader`) — four host
-processes. Reverse geocoding is **staged and traffic-driven** over a stack of ClickHouse
-`POLYGON` dictionaries (no Nominatim/PostGIS on the reverse path): the loader downloads a
-global ADM0 **world map** at startup (`__aenter__`, Natural Earth admin-0 — geoBoundaries'
-own global ADM0/CGAZ is ~400 MB, too heavy), and enrich detects each aircraft's country
-against it, writing that ISO-3 to the compacted `adsb-countries` topic; the loader consumes
-those as its poll targets and downloads **all** admin levels that country publishes
-(geoBoundaries ADM1…ADM5) into one `adsb_region_adm{n}_dict` each (all from the single
-`adsb_region_boundaries` table filtered by level), just-in-time. enrich `dictGet`s every level
-for a point and concatenates the hits into a hierarchical label (`Le Bourget; Marne; Grand
-Est`) — one dict per level because a polygon dict returns only the finest containing
-polygon. **Nothing is seeded** — `setup.py` only creates topics + schema; a user requests a
-poll region with `uv run poe request-region "<name>"` (→ `request.py` → `adsb-regions`),
-and forward geocoding of that name→centre uses public Nominatim (`ingest`). An extractor
+`prometheus/prometheus.yml`; the chaos harness runs metrics-off, because its rapid
+SIGKILL restarts would race to rebind a scrape port.
+
+An extractor
 takes one config record per poll target, keyed on a compacted config topic (any producer,
-Kafbat included, works too); a transformer consumes a partitioned input topic instead. The
-**Odds Arbitrage Radar** (`odds`) is the N-source fan-in case: two *independent* extractor
-processes (`polymarket`, `kalshi`) share the one compacted config topic `odds-pairs` and both
-produce to the one partitioned topic `odds-quotes` keyed by pair, so the `radar` transformer
-sees both venues' quotes co-partitioned onto one task; it holds the latest quote per venue in
-its join state, recomputes the cross-venue arbitrage on every update (emitting a continuous
-`odds-margins` stream + a sparse `odds-signals` stream), gates signals on event-time freshness
-(the two legs' `fetched_at`), and tombstones the pair's state when a venue reports the market
-closed. Both extractors are stateless snapshot pollers (no cursor). Keyless public data
-(Polymarket Gamma/CLOB + Kalshi), read-only — it never places an order. **Wildfire Watch**
-(`wildfire`) is the spatiotemporal-sessionization case and the **only example needing an API key**:
-`ingest` polls NASA FIRMS' area API for two VIIRS satellites per watch region (a compacted
-`wildfire-regions` config record carrying a place name **and its cached bounding box** — `request.py`
-geocodes at request time via Nominatim's `boundingbox`, the one field no other example reads, and
-writes all four edges into the record so it is self-describing and the tool can warn about
-overlapping regions by intersecting rectangles; `enrich_config` is the **fallback** that geocodes
-**once** for a name-only record, e.g. one hand-produced in Kafbat), emits the new
-375 m hotspot pixels **then one `sweep` marker** to `wildfire-detections`, and keeps a **bounded,
-event-time-pruned seen-set** as its cursor (FIRMS has no row id and nothing monotonic: identity is
-a 12-hex hash of the raw CSV strings, bucketed by `acq_date`, whole buckets dropped as the day
-window rolls, hard-capped at 20 k ids for the ~1 MB changelog ceiling — enforced even *within* a
-single day bucket by trimming its oldest ids, because one monster bucket once produced an
-oversized state record that crashlooped the stage). The `tracker` transformer
-clusters those points into **persistent fire objects** in keyed state (`FIRES = {fire_id: entry}`,
-2 km link distance, `F_*` raw keys, pure core in `tracking.py`, bucket hard-capped at
-`MAX_FIRES = 2000` by stalest-first forced extinction — the bucket is one ~1 MB changelog record
-too, and the worst savanna cell clusters 6 k+ fires/day) with a full lifecycle: ignition,
-growth, merge when one detection bridges two fires, and **extinction after 12 h of event time** —
-driven *entirely* by the sweep marker, which is emitted even on a quiet poll because the framework
-has no timers (so status heartbeats are sweep-paced, not detection-paced, and no input means no
-extinction). The region's bucket is tombstoned when its last fire dies. Outputs: `wildfire-status`
-(continuous per-fire snapshots → `wildfire_status` history + `wildfire_active` ReplacingMergeTree) and
-`wildfire-events` (sparse ignition/merged/extinguished, no TTL). `wildfire-detections` feeds **two**
-ClickHouse tables by kind — `wildfire_detections` and `wildfire_sweeps`, the latter existing so a
-freshness panel can tell "nothing burning" from "poller stopped". A false extinction self-heals as
-a new ignition — documented, not hidden. `request.py` prints what Nominatim *matched*
-(`display_name` + `addresstype` — a typo like "Bordeux, France" silently matches a street in
-Picardy) and **refuses geocoded or explicit boxes wider than 60° a side** (`REFUSE_BBOX_DEG`;
-"France" resolves to the whole Republic, Kerguelen to Polynesia, and one region that size
-crashloops both stages' single-record state). "Everything" is the **world watch**:
-`request-wildfire world` (retire with `retire world`) tiles the planet in `tiles.py` — a 10°
-Natural-Earth land grid (267 cells, nothing south of 60°S) quadtree-split above ~6 k
-detections/24 h down to 1.25°, counted from FIRMS' *keyless public* daily global CSVs so tiling
-spends no quota — into a few hundred ordinary `world-*` config records; the stages have no
-world-specific code, re-running re-tiles and tombstones stale tiles, and the seasonal burn-belt
-drift is handled by re-running, not by the stages. **F1 Live Timing** (`f1`) is the
-**append-only-file** case and the repo's only *deterministic, replayable* example: Formula 1's public
-live-timing archive records every session as a directory of line-framed `<Feed>.jsonStream` files, so
-`ingest` keeps a **per-feed byte offset** as its resume cursor — which makes backfilling a finished
-file, tailing a growing one, and recovering from a crash literally the same code path, and makes an
-outage cost timeliness but never data. Config records on `f1-sessions` are keyed by the session
-**path** (`2026/2026-07-26_Hungarian_Grand_Prix/2026-07-26_Race/`), which is also the Kafka key of
-every record the example produces; `request.py` seeds them by `season` / `session <path>` / `follow`,
-and the **follow** target is the repo's one extractor that *produces onto its own config topic*
-(legal by construction: config topics are consumed group-less and read_committed). Each poll
-range-reads a self-tuning chunk of all 14 feeds (16 with `telemetry`, which gates the two big `.z`
-feeds), frames whole lines, and emits them under a **watermark** — the minimum offset every feed is
-known to be complete to — because the board's flag join would otherwise tag laps with a `TrackStatus`
-it has not read yet. Pure cores: `tape.py` (BOM, CRLF framing, raw-deflate inflate, the `t0` anchor,
-frontier/watermark/merge) and `board.py` (patch merge, gap/duration parsing, lap detection, the flag
-severity order). Two archive traps are load-bearing: **keyframes hold the FINAL state** (so replay
-never reads one for data — `ArchiveStatus.json` is the completion probe precisely because its
-`.jsonStream` twin says `Generating` forever), and **collections switch from array to index-keyed
-dict mid-stream, per field** (`board.indexed`). `t0` is anchored ONCE per session from the first
-`Heartbeat` line and **persisted as part of the cursor** — a later beat cannot be used (at the tape's
-end the offsets freeze while the beats tick, so the implied `t0` walks 1200 s forward), and a session
-with no anchor-capable feed is marked `done` rather than emitted with invented times. The `timing`
-transformer folds the feed's *partial patches* into `drivers{}` keyed state and emits **only when a
-driver's projection actually changed** (88 % of `TimingData` lines move nothing but a marshalling
-segment), producing `f1-status` (standings/weather/clock/heartbeat), `f1-events`
-(lap/pit/track_period/race_control/overtake/championship + the session and driver dimensions) and
-`f1-telemetry` (car/pos); the session's bucket is tombstoned on `SessionStatus = Ends`, not on
-`Finalised` (minutes of tape follow the latter). The tape topic itself is **deliberately not sunk to
-ClickHouse** — it is Kafka-durable and the board is re-runnable over it under a fresh application id.
-All four data topics are created with **`retention.ms=-1`**, which is correctness and not hoarding:
-backfilled records carry event times months in the past and Kafka's time retention judges a segment
-by its max record timestamp. The three dashboards share one mechanism — an **as-of cursor** in plain
-SQL (`event_time <= cursor`, no lower bound) that makes live, scrub, and animated replay the same
-query with no timestamp ever rewritten.
+Kafbat included, works too); a transformer consumes a partitioned input topic instead.
+
+The four examples with load-bearing design rationale carry it in their own
+`examples/<name>/CLAUDE.md`, which loads only when you work under that directory:
+`adsb_flight_tracker` (staged polygon-dictionary reverse geocoding),
+`odds_arbitrage_radar` (N-source fan-in), `wildfire_watch` (spatiotemporal
+sessionization, the one example needing an API key) and `f1_live_timing`
+(the append-only-file cursor).
 
 ## Conventions carried from the framework (keep these)
 
@@ -318,7 +205,3 @@ query with no timestamp ever rewritten.
   acquisition); not self-hostable infrastructure.
 - **Examples living in the main repo** — weight, issue-tracker noise, silent rot
   vs. this repo's deliberate version pinning.
-
-## License
-
-MIT, same as the framework.
