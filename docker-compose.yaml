@@ -156,6 +156,10 @@ services:
       start_period: 3s
       test: ["CMD-SHELL", "mosquitto_sub -i healthcheck -t healthcheck -E || exit 1"]
       timeout: 5s
+    # 2.x is a floor, not a preference: since flechtwerk 0.9 the MqttExtractor
+    # speaks MQTT 5 and subscribes `$share/<application_id>/<filter>`, and shared
+    # subscriptions arrived in Mosquitto 2.0 (EMQX 3.0). There is no fallback in
+    # the framework, so an older image would connect and then relay nothing.
     image: eclipse-mosquitto:2.1.2-alpine
     ports:
       - "127.0.0.1:1883:1883"

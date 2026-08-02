@@ -93,7 +93,7 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 
 | Service | URL / port | What it's for |
 |---|---|---|
-| Kafka | `localhost:9092` | the broker (KRaft, single node); examples connect here |
+| Kafka | `localhost:9092` | the Kafka broker (KRaft, single node); examples connect here |
 | Kafbat UI (web UI for Kafka) | <http://localhost:8080> | browse topics, messages, consumer groups |
 | Mosquitto | `localhost:1883` | MQTT broker for the bridge examples |
 | ClickHouse | <http://localhost:8123> (HTTP), `localhost:9000` (native) | OLAP sink for every example's output (database `flechtwerk`) |
@@ -174,7 +174,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.8.0`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.9.1`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.

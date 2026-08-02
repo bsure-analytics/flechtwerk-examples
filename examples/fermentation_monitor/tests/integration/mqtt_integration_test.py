@@ -84,7 +84,7 @@ async def test_bridge_relays_a_reading_from_mqtt_to_kafka(kafka_bootstrap: str, 
             if asyncio.get_running_loop().time() > deadline:
                 pytest.fail("no reading reached Kafka")
             # Republish each round: the bridge may not have subscribed yet, and a
-            # QoS-1 publish to no subscriber is dropped by the broker.
+            # QoS-1 publish to no subscriber is dropped by the MQTT broker.
             _publish(mosquitto, gravity=1.045)
             batch = await consumer.getmany(timeout_ms=1000)
             readings = [json.loads(m.value) for records in batch.values() for m in records]

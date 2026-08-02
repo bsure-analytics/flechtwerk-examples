@@ -46,7 +46,7 @@ default: `setup.py` applies `clickhouse.sql` one statement per HTTP request (a
 `USE` wouldn't carry across requests), and materialized views / polygon
 dictionaries bind their DB at creation time — qualification keeps the schema
 file self-contained and re-runnable. Kafka persists across restarts (the
-`kafka-init` one-shot `chown`s the volume to the broker's uid). Prometheus
+`kafka-init` one-shot `chown`s the volume to the Kafka broker's uid). Prometheus
 scrapes host-run stages via `host.docker.internal:<port>`. Grafana provisions
 datasources + dashboards under `grafana/`: a per-example dashboard for the
 examples that ship one (adsb ships two — `adsb-flight-tracker` and
@@ -109,7 +109,7 @@ runs metrics-off, but still calls `_runner.run(...)`. `examples/_setup.py` is th
 setup-time twin: shared ops helpers each `setup.py` imports (e.g.
 `quiet_fresh_topic_produce_race`, which silences aiokafka's guaranteed-transient
 `NotLeaderForPartitionError` when seeding a just-created topic — the controller
-names a leader before the broker finishes becoming one, so the first produce
+names a leader before the Kafka broker finishes becoming one, so the first produce
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,

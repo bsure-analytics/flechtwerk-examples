@@ -217,7 +217,7 @@ wheels = [
 
 [[package]]
 name = "flechtwerk"
-version = "0.8.0"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiokafka", extra = ["zstd"] },
@@ -225,9 +225,9 @@ dependencies = [
     { name = "reactor-di" },
     { name = "rocksdict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/90/1583309a4a28a3b3cc966b3ad3d40ae84347eb8d5d2ac4df5a3a070d3c48/flechtwerk-0.8.0.tar.gz", hash = "sha256:bf255c4de5409549bec2e8115a8614e4ad794e7d25c1431bfe332cb6920a10bf", size = 614130, upload-time = "2026-07-27T21:13:45.535Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/f1/50e087dfd91e260131cd2673f50840733025489bbdd562f3485a842f4b12/flechtwerk-0.9.1.tar.gz", hash = "sha256:738807ebbdac75a7dc3bdd8f379b42e76cfe8faff1092e8c8c783032d94b4a3d", size = 638717, upload-time = "2026-08-02T02:39:47.577Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/5d/598b7d2b38d29cb7a1e94f6a3bddf3ff606fed24d09c988412f3b8eaef3c/flechtwerk-0.8.0-py3-none-any.whl", hash = "sha256:18e6722b893bf036770e277f2e9e6088397761e9908718718ff8056fb3be5d82", size = 100431, upload-time = "2026-07-27T21:13:44.094Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/9f/e82df989b441bc83a91a76ed075b99d917d0665a7c2d28b81a83a92be324/flechtwerk-0.9.1-py3-none-any.whl", hash = "sha256:487c516373fdd1460bc9521911faed251c6f819ed666814c21b5ea5fc3efa2c0", size = 109215, upload-time = "2026-08-02T02:39:46.572Z" },
 ]
 
 [package.optional-dependencies]
@@ -258,7 +258,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.8.0" },
+    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.9.1" },
     { name = "gtfs-realtime-bindings", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "tzdata", specifier = ">=2024.1" },
@@ -276,14 +276,14 @@ dev = [
 
 [[package]]
 name = "gtfs-realtime-bindings"
-version = "2.1.0"
+version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9c/a2/0f37ed620fc1aa6edb4b6efcb29af2c3c3754d5d3d91e5adc7bdbcb84df0/gtfs_realtime_bindings-2.1.0.tar.gz", hash = "sha256:1507ca39628ee8df2d3aae38f9eed881d4a82aa8246930d608ba6428d5ca3a56", size = 11916, upload-time = "2026-07-02T18:28:12.46Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/63/3e3d190df599b6d25e2c0793f6653bb696c1be8480263ef417ea70a40f25/gtfs_realtime_bindings-2.2.0.tar.gz", hash = "sha256:1e184075ff6aae1f8e8c91ae28eb946af5e5b656b743a41a7bca37818784886b", size = 12013, upload-time = "2026-07-29T19:12:47.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/f3/180b6e0e3cb43cf43a43ec18a6122a37c936d95fe0fea30eae1b3a1a6ee2/gtfs_realtime_bindings-2.1.0-py3-none-any.whl", hash = "sha256:02d00999c429691430b3d21ef619e1697e543926a4ca1dc0521204bad6a723ed", size = 11180, upload-time = "2026-07-02T18:28:11.159Z" },
+    { url = "https://files.pythonhosted.org/packages/77/14/a73fbb70b7948cd2d2f1c48846889fc6c944a6aede25a31d8111a1d48dcf/gtfs_realtime_bindings-2.2.0-py3-none-any.whl", hash = "sha256:4f222a962bcb8715d9305cc08e7f7662cc70e7479f377e2694439a50724bc676", size = 11297, upload-time = "2026-07-29T19:12:46.089Z" },
 ]
 
 [[package]]

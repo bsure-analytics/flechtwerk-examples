@@ -7,10 +7,13 @@
 
 Each target selects a stage by name (``python -m examples.fermentation_monitor
 <stage>``) and runs it through the shared ``examples._runner``. For the bridge,
-``mqtt`` carries the broker settings and ``client_id`` also names the persistent
-MQTT session (stable across restarts); ``poll_interval`` is only the idle cadence,
-since arrivals wake the loop. Config is injected here, not read from the
-environment.
+``mqtt`` carries the MQTT broker settings, ``client_id`` also names the persistent
+MQTT session (stable across restarts), and ``application_id`` doubles as the
+shared-subscription group (``$share/fermentation-bridge/...``); ``poll_interval``
+is only the idle cadence, since arrivals wake the loop. The MQTT session expiry
+keeps its 24 h default — at one replica that window *is* the outage budget, and a
+demo hydrometer feed cannot outgrow Mosquitto's queue. Config is injected here,
+not read from the environment.
 """
 from datetime import timedelta
 

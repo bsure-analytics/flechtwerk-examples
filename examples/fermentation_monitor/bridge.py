@@ -2,7 +2,7 @@
 
 `to_reading` is the relay: a small function that turns one hydrometer payload into
 a fermentation reading. The framework's template drives it and — the headline
-guarantee — ACKs the message to the broker only *after* the batch it belongs to
+guarantee — ACKs the message to the MQTT broker only *after* the batch it belongs to
 is durable in Kafka. A missing (or wrong-typed) gravity makes the relay raise on
 the typed read, which the template turns into a poison-drop (ACK + warn), never a
 crash loop.

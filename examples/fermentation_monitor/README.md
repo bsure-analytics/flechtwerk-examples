@@ -1,7 +1,7 @@
 # Fermentation Monitor — MQTT Bridge
 
 The push-driven showcase: an **`MqttExtractor`** bridges iSpindel/Tilt hydrometer
-readings from MQTT into Kafka — **ACKing the broker only after Kafka has the
+readings from MQTT into Kafka — **ACKing the MQTT broker only after Kafka has the
 data** — and a stateful transformer tracks each batch's gravity curve, alerting
 on a stall and tombstoning the batch when fermentation finishes.
 
@@ -20,9 +20,20 @@ flowchart LR
 ## What it demonstrates
 
 - **ACK after Kafka, not before.** The bridge is the framework's MQTT template:
-  it forwards each reading, and ACKs it to the broker only on the *next* poll —
-  once the batch is durable in Kafka. Crash in between and the broker redelivers
-  (at-least-once); the `relay` itself is a pure function.
+  it forwards each reading, and ACKs it to the MQTT broker only on the *next*
+  poll — once the batch is durable in Kafka. Crash in between and the MQTT
+  broker redelivers (at-least-once), which is harmless: the `relay` does no I/O
+  of its own, so a redelivered reading just passes through it again — the one
+  thing that differs is the ingest time it stamps (`at`), which is why the
+  relay is deliberately *not* pure. See `bridge.py`.
+- **The MQTT broker shards the work, so the bridge is stateless.** Since
+  flechtwerk 0.9 the bridge subscribes `$share/fermentation-bridge/ispindel/<batch>`
+  — an MQTT 5 shared subscription whose group is the `application_id` — so whole
+  filters are dispatched by the MQTT broker rather than leased through Kafka.
+  That model has no fenced handover and no assignment event to restore at, so an
+  `MqttExtractor` may not yield `State` at all (the framework raises). Hence the
+  split this example is built on: a stateless bridge, and all the state one topic
+  downstream in the monitor.
 - **Stateful per-batch analysis.** The monitor keeps each batch's gravity curve
   as `State`. Flat gravity for too long → a **stall** alert. Reaching final
   gravity → a **complete** alert and a **tombstone** (a falsy `State` that
