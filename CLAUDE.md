@@ -168,6 +168,17 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   `float()`). Required attributes reject `None`; use `optional=True` or omit the
   key. Yielding a falsy `State()` tombstones the key. `Record.wrap(raw)` for
   wire JSON, `Record({ATTR: v})` for typed literals.
+- **Binary in a record goes through `BYTES`** (0.9.3+) — strict canonical base64,
+  the one atom whose Python type isn't JSON-native. No example needs it today, and
+  that is a decision, not an omission: binary is decoded *at the edge* here (GTFS
+  turns protobuf into dicts inside the extractor, F1 inflates `.z` payloads at
+  ingest), so nothing binary-shaped ever reaches the wire. If a new edge does need
+  a binary field, declare `Attribute(name, BYTES)` — never hand-roll base64 into a
+  `STR` (that loses the injective round-trip) and never reach for `ANY`, which
+  refuses `bytes` on purpose. For a message that *is* a blob, send `bytes` as the
+  `Payload` and skip the field framing; weigh base64's 4/3 inflation against
+  Kafka's ~1 MiB record ceiling either way. A digest or a short id stays hex —
+  it's an identifier, and hex reads in Kafbat and ClickHouse.
 - All framework consumers run `read_committed`; downstream consumers of any EOS
   output must too.
 - **"Let it crash":** no in-process retry for transient errors — let a timeout /
