@@ -197,6 +197,15 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   write surface** — `put`/`delete` became `_put`/`_delete` in 0.9.4; the topic is the
   write path. `ConfigStore()` / `ConfigStore.of({...})` stay public and are what the
   runner tier seeds with.
+- **The config store's size is observable** (0.9.5+) — `config_store_bytes` beside
+  `config_store_entries`, and `ConfigStore.nbytes` in code: the wire size of the store
+  (UTF-8 keys plus encoded values), because RAM is the contract the store lives under
+  and an entry count says nothing about row size. `f1-sessions` is bounded by the
+  calendar, so the number is flat here by construction; it earns watching when a
+  table's key space tracks the *data* instead, and the framework's answer at that
+  point is a repartition hop — an intermediate topic keyed by the lookup, the memo in
+  the next hop's task state — not a bigger config topic. The **Observability**
+  dashboard's Config Store row carries the panel.
 - All framework consumers run `read_committed`; downstream consumers of any EOS
   output must too.
 - **"Let it crash":** no in-process retry for transient errors — let a timeout /

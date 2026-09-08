@@ -103,8 +103,8 @@ declared in `pyproject.toml`; run `uv run poe` with no argument to list them all
 Grafana provisions dashboards tagged `flechtwerk`: **Observability** (the
 `flechtwerk_*` Prometheus metrics — throughput, undecodable records by topic and
 by what the invalid-message policy did with them, record and state sizes against
-the ~1 MiB record ceiling, latency, extractor poll cycles, MQTT, config store,
-transformer tasks & state restore, process health —
+the ~1 MiB record ceiling, latency, extractor poll cycles, MQTT, config store
+(entries and bytes held), transformer tasks & state restore, process health —
 filterable by example, stage, and client), **Stream Data**
 (a ClickHouse datasource smoke test), and per-example dashboards — **ADS-B Flight
 Tracker** (a live map + enriched table), **ADS-B Aviation Events**
@@ -174,7 +174,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.9.4`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.9.5`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.
