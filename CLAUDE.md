@@ -179,6 +179,24 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   `Payload` and skip the field framing; weigh base64's 4/3 inflation against
   Kafka's ~1 MiB record ceiling either way. A digest or a short id stays hex —
   it's an identifier, and hex reads in Kafbat and ClickHouse.
+- **A config topic has a sanctioned write direction** (0.9.4+) — a stage may declare
+  a config topic *and* yield a `Message` naming it; the write rides the task
+  transaction like any other output, and the group-less config consumer's
+  `read_committed` keeps an aborted row out of every instance's store. `f1_live_timing`
+  is the repo's one instance (`follow` appends discovered sessions to `f1-sessions`),
+  and it is a **request** table, not the release's headline use case — a durable memo
+  of an *external observation*, so a replay reads the answer as it was instead of
+  re-asking a service that has moved on. No example needs that memo: the one
+  transformer that asks a third party (`adsb_flight_tracker`'s `enrich`) already
+  memoizes into ClickHouse, which is also its serving surface, so moving it onto a
+  config topic would buy replay fidelity it does not claim and cost the join.
+  The caveats bind either way — no read-your-writes (f1 dedupes from its own
+  partitioned state, which is durable, rather than from a lossy cache), unserialized
+  last-write-wins rows, the whole table in RAM per instance and re-read on every boot,
+  and a topic nothing can recompute must never be reset. `ConfigStore` has **no public
+  write surface** — `put`/`delete` became `_put`/`_delete` in 0.9.4; the topic is the
+  write path. `ConfigStore()` / `ConfigStore.of({...})` stay public and are what the
+  runner tier seeds with.
 - All framework consumers run `read_committed`; downstream consumers of any EOS
   output must too.
 - **"Let it crash":** no in-process retry for transient errors — let a timeout /

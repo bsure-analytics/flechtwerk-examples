@@ -87,6 +87,10 @@ Secondary, and each earns its keep:
   from then on the stage watches the season index and self-produces a session config for each
   newly-listed session. Config topics are read group-less and `read_committed`, so a record a poll
   writes inside its transaction is picked up by the next config drain — no special case anywhere.
+  Flechtwerk 0.9.4 sanctions this direction explicitly ([Writing to a Config
+  Topic](https://github.com/bsure-analytics/flechtwerk/blob/main/docs/concepts/config-topics.md));
+  the lookup lag it warns about costs this stage nothing, because `follow` remembers what it has
+  already requested in its own durable state rather than by reading the table back.
 
 ## Quickstart
 

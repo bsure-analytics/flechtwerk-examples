@@ -9,7 +9,12 @@ outage cost timeliness but never data. Config records on `f1-sessions` are keyed
 **path** (`2026/2026-07-26_Hungarian_Grand_Prix/2026-07-26_Race/`), which is also the Kafka key of
 every record the example produces; `request.py` seeds them by `season` / `session <path>` / `follow`,
 and the **follow** target is the repo's one extractor that *produces onto its own config topic*
-(legal by construction: config topics are consumed group-less and read_committed). Each poll
+(sanctioned since flechtwerk 0.9.4, which documents the write direction and its contract; the
+write rides the task transaction, and the group-less config consumer's read_committed keeps an
+aborted row out of every store). It carries a **request** table rather than the memo of an
+external observation that release centres on, and it sidesteps the no-read-your-writes caveat
+without a bridge cache: `follow` dedupes against `SEEN` in its own partitioned state, which is
+durable, so a row it cannot yet see through `configs.get` is never re-requested. Each poll
 range-reads a self-tuning chunk of all 14 feeds (16 with `telemetry`, which gates the two big `.z`
 feeds), frames whole lines, and emits them under a **watermark** — the minimum offset every feed is
 known to be complete to — because the board's flag join would otherwise tag laps with a `TrackStatus`
