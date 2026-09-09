@@ -206,6 +206,19 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   point is a repartition hop — an intermediate topic keyed by the lookup, the memo in
   the next hop's task state — not a bigger config topic. The **Observability**
   dashboard's Config Store row carries the panel.
+- **Several stages may share one process** (0.10.0+) — one `Flechtwerk` handle per
+  stage, run as sibling tasks under an `asyncio.TaskGroup`, each with its own
+  `application_id` and `client_id`; stages naming the same `metrics_port` share ONE
+  scrape endpoint and are told apart by their `metrics_labels` values (identical
+  labels, differing label names or a differing `max_poll_records` fail at startup),
+  and the secret observer is bound per stage rather than first-wins per process.
+  The examples deliberately keep **one process per stage**: `_runner.run` runs one
+  stage, every `run-<example>-<stage>` target is one process, the multi-stage
+  `run-<example>` supervisors spawn one process per stage, and Prometheus scrapes
+  each on its own `host.docker.internal:<port>` — so a reader sees the process
+  boundary the production deployment has (a replica count is per process). Reach
+  for co-hosting only in an example whose point is the pipeline shape, not the
+  stages.
 - All framework consumers run `read_committed`; downstream consumers of any EOS
   output must too.
 - **"Let it crash":** no in-process retry for transient errors — let a timeout /

@@ -174,7 +174,7 @@ see? Open an issue or PR here. For the framework itself, use the
 ## Versioning Policy
 
 `flechtwerk` is pinned to an exact released version in `pyproject.toml`
-(`flechtwerk[mqtt]==0.9.5`) with the full resolution captured in `uv.lock` —
+(`flechtwerk[mqtt]==0.10.0`) with the full resolution captured in `uv.lock` —
 never a path or git dependency; the Docker images are pinned to specific tags
 too. Upgrades are deliberate: bump the pins, relock, and let the tests and a live
 end-to-end pass verify the new release.
