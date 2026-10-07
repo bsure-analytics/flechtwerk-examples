@@ -132,8 +132,6 @@ DOCUMENT_IDENTIFIER: Final = Attribute("DocumentIdentifier", STR)
 """The article URL — the ``gdelt-gkg-raw`` message key and the clustering dedup key."""
 SOURCE_COMMON_NAME: Final = Attribute("SourceCommonName", STR, optional=True)
 """The outlet's common name / domain (e.g. ``lemonde.fr``) — the coverage-spread lookup key."""
-GKG_DATE: Final = Attribute("DATE", STR, optional=True)
-"""GKG record timestamp, ``YYYYMMDDHHMMSS`` (redundant with the file ts; kept for provenance)."""
 V2_TONE: Final = Attribute("V2Tone", STR, optional=True)
 """The 7-element comma tuple (tone,pos,neg,polarity,activity,selfgroup,wordcount) — parsed
 at the site by :func:`.parsers.parse_tone`, never declared per-element."""

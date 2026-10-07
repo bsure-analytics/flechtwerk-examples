@@ -175,8 +175,7 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   wants a codec's name (an attribute called `DATE`, say) does that module write
   `from flechtwerk.attribute import codec` and `codec.DATE`, or alias it on import
   (`DATE as DATE_CODEC`). Never rename the attribute to dodge the codec. No example
-  needs the qualified form today: nothing collides, and gdelt's `GKG_DATE` is named
-  for its table. Its schema module never imports the `DATE` codec. The old
+  needs the qualified form today, because nothing collides. The old
   `flechtwerk.attribute.codecs` module is gone, and nothing here imported it.
 - **Binary in a record goes through `BYTES`** (0.9.3+) — strict canonical base64,
   the one atom whose Python type isn't JSON-native. No example needs it today, and
