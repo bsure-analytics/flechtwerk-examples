@@ -168,6 +168,16 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   `float()`). Required attributes reject `None`; use `optional=True` or omit the
   key. Yielding a falsy `State()` tombstones the key. `Record.wrap(raw)` for
   wire JSON, `Record({ATTR: v})` for typed literals.
+- **Codec imports: short by default, qualified on a clash** (0.11.0+) — every codec
+  (atoms, constructors, `Codec`, `record_codec`) lives in `flechtwerk.attribute.codec`,
+  and the package keeps re-exporting all of them, so `from flechtwerk.attribute import
+  Attribute, DATETIME, STR` remains the house style. Only when a module's own constant
+  wants a codec's name (an attribute called `DATE`, say) does that module write
+  `from flechtwerk.attribute import codec` and `codec.DATE`, or alias it on import
+  (`DATE as DATE_CODEC`). Never rename the attribute to dodge the codec. No example
+  needs the qualified form today: nothing collides, and gdelt's `GKG_DATE` is named
+  for its table. Its schema module never imports the `DATE` codec. The old
+  `flechtwerk.attribute.codecs` module is gone, and nothing here imported it.
 - **Binary in a record goes through `BYTES`** (0.9.3+) — strict canonical base64,
   the one atom whose Python type isn't JSON-native. No example needs it today, and
   that is a decision, not an omission: binary is decoded *at the edge* here (GTFS
