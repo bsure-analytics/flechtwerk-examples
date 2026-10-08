@@ -26,7 +26,9 @@ data (there is no free route polyline; see the package docstring). Position is
 **Event time is the update's ``FEED_TS``** (the RT header timestamp) — never
 wall-clock, so :func:`build_delay_state` and everything under it is pure and the logic
 tier drives every branch. ``service_time_to_utc`` anchors GTFS local clock-times to the
-service day via the noon−12 h rule, which stays exact across the DST changeover.
+service day via the noon−12 h rule, which stays exact across the DST changeover. The
+zone they are local to is the profile's ``TIMEZONE`` — the feed's own
+``agency_timezone``, carried by the loader — so nothing here hard-codes Berlin.
 """
 import logging
 from collections.abc import AsyncIterator
@@ -56,6 +58,7 @@ from .attributes import (
     STOP_NAME,
     STOPS,
     STOPS_DONE,
+    TIMEZONE,
     STOPS_TOTAL,
     STOP_TIME_UPDATE,
     TERMINUS_DELAY_S,
@@ -70,16 +73,13 @@ log = logging.getLogger(__name__)
 
 DELAYS_TOPIC = "gtfs-train-delays"
 
-BERLIN = ZoneInfo("Europe/Berlin")
-"""GTFS clock-times are local; German rail runs on Europe/Berlin (CET/CEST)."""
-
 # status thresholds (seconds); the on_time ceiling is DB's < 6 min "pünktlich".
 _EARLY = -60
 _ON_TIME = 360
 _LATE = 1800
 
 
-def service_time_to_utc(start_date: str, seconds: int, *, tz: ZoneInfo = BERLIN) -> datetime:
+def service_time_to_utc(start_date: str, seconds: int, tz: ZoneInfo) -> datetime:
     """Anchor a GTFS clock-time (seconds since local midnight, possibly > 24 h) to a UTC
     instant on the ``YYYYMMDD`` service day.
 
@@ -141,15 +141,16 @@ class Progress:
     terminus_delay_s: int
 
 
-def locate(stops: list[dict], delays: list[int], start_date: str, feed_ts: datetime) -> Progress | None:
+def locate(stops: list[dict], delays: list[int], start_date: str, tz: ZoneInfo,
+           feed_ts: datetime) -> Progress | None:
     """Locate the train at ``feed_ts`` — the first stop it has not yet departed.
 
     Delay-adjusted departures/arrivals are compared to ``feed_ts``: the next stop is the
     first whose adjusted departure is still in the future (the train is at or approaching
     it); before the first departure that is the origin, and a trip whose last adjusted
     arrival is already past has terminated (``None`` — nothing to show). Pure."""
-    deps = [service_time_to_utc(start_date, s[STOP_DEP_S]) + timedelta(seconds=d) for s, d in zip(stops, delays)]
-    arrs = [service_time_to_utc(start_date, s[STOP_ARR_S]) + timedelta(seconds=d) for s, d in zip(stops, delays)]
+    deps = [service_time_to_utc(start_date, s[STOP_DEP_S], tz) + timedelta(seconds=d) for s, d in zip(stops, delays)]
+    arrs = [service_time_to_utc(start_date, s[STOP_ARR_S], tz) + timedelta(seconds=d) for s, d in zip(stops, delays)]
     if feed_ts > arrs[-1]:
         return None  # already arrived at its destination
     next_idx = next((i for i, dep in enumerate(deps) if dep > feed_ts), len(stops) - 1)
@@ -172,8 +173,9 @@ def build_delay_state(profile: Event, update: Event, feed_ts: datetime) -> Event
         return None
     stus = update.get(STOP_TIME_UPDATE) or []
     delays, skipped = effective_delays(stops, stus)
-    start_date = (trip.get(START_DATE) if trip is not None else None) or feed_ts.strftime("%Y%m%d")
-    progress = locate(stops, delays, start_date, feed_ts)
+    tz = profile[TIMEZONE]
+    start_date = (trip.get(START_DATE) if trip is not None else None) or feed_ts.astimezone(tz).strftime("%Y%m%d")
+    progress = locate(stops, delays, start_date, tz, feed_ts)
     if progress is None:
         return None
     at = stops[progress.next_idx]

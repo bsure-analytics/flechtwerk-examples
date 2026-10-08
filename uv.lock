@@ -217,7 +217,7 @@ wheels = [
 
 [[package]]
 name = "flechtwerk"
-version = "0.11.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiokafka", extra = ["zstd"] },
@@ -225,9 +225,9 @@ dependencies = [
     { name = "reactor-di" },
     { name = "rocksdict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/bd/ce92842b829eb844900f375c64864cd0c89e0b998d3e355a59799463123a/flechtwerk-0.11.0.tar.gz", hash = "sha256:25277f759be3629aa1ae8f29156db61b47ff19eb26bb950d25706395c696c8d0", size = 673127, upload-time = "2026-10-07T17:13:19.028Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/2e/aee7dce7a410290983688490286c4a390cd80cf88605635572e9c4516899/flechtwerk-0.12.0.tar.gz", hash = "sha256:8d454944f23d90126bad7eb67e1e15f0fbe4aef0709e32031da0e6c261a26136", size = 675080, upload-time = "2026-10-08T09:51:26.189Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9d/cc/57185c6cdc90d2a4dfd7ee48f8d9e873a90e3cb8547cba6d83da0da0db17/flechtwerk-0.11.0-py3-none-any.whl", hash = "sha256:e28fc2f26808982a1a9b396bb7111f3de3f83f53501f2e6a72f549a26ace2b40", size = 115698, upload-time = "2026-10-07T17:13:17.63Z" },
+    { url = "https://files.pythonhosted.org/packages/40/56/3d3b2106d79d349bb3f4c69f41013672ab81637b0ca370e0736bd6a306d4/flechtwerk-0.12.0-py3-none-any.whl", hash = "sha256:471a52961c30d4cd685f3c263da91c57587cd3bdd907e76b12462144d000d3e1", size = 116553, upload-time = "2026-10-08T09:51:24.966Z" },
 ]
 
 [package.optional-dependencies]
@@ -258,7 +258,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.11.0" },
+    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.12.0" },
     { name = "gtfs-realtime-bindings", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "tzdata", specifier = ">=2024.1" },

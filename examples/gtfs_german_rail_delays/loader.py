@@ -32,6 +32,7 @@ from collections.abc import AsyncIterator, Iterator
 
 import httpx
 from flechtwerk import Config, Event, Extractor, Message, State
+from flechtwerk.attribute import ZONE_INFO
 
 from .attributes import (
     DESTINATION,
@@ -46,6 +47,7 @@ from .attributes import (
     STOP_NAME,
     STOP_SEQ,
     STOPS,
+    TIMEZONE,
     TRIP_ID,
     URL,
 )
@@ -88,13 +90,19 @@ def build_profiles(
     + coordinates). Stops are ordered by ``stop_sequence``; arrival/departure clocks
     become seconds. The destination is the last stop's name (``trips.txt`` carries no
     headsign). A stop whose id is absent from ``stops.txt`` is skipped defensively
-    rather than placed at (0, 0)."""
+    rather than placed at (0, 0). Every profile carries the feed's ``agency_timezone``,
+    which GTFS requires to be one zone across all agencies — a feed that breaks that
+    rule, or names a zone the tz database doesn't know, raises ``ValueError``."""
     zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
 
     def rows(name: str) -> Iterator[dict[str, str]]:
         with zf.open(name) as handle:
             yield from csv.DictReader(io.TextIOWrapper(handle, "utf-8-sig"))
 
+    zones = {a["agency_timezone"] for a in rows("agency.txt")}
+    if len(zones) != 1:
+        raise ValueError(f"a GTFS feed has exactly one agency_timezone, got {sorted(zones)}")
+    zone = ZONE_INFO.decode(zones.pop())
     routes = {r["route_id"]: r for r in rows("routes.txt")}
     stops = {s["stop_id"]: s for s in rows("stops.txt")}
     kept = {
@@ -133,6 +141,7 @@ def build_profiles(
             ROUTE_TYPE: int(route["route_type"]),
             DESTINATION: stops_out[-1][STOP_NAME],
             STOPS: stops_out,
+            TIMEZONE: zone,
             STATIC_VERSION: version,
         })
         yield trip_id, profile

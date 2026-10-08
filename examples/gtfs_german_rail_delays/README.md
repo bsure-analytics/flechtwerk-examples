@@ -54,7 +54,10 @@ Primitives the other examples don't:
 4. **Deriving what the source won't give you.** Event-time delay propagation (a sparse
    `StopTimeUpdate`'s delay carries to later stops until the next one), dwell/skip
    handling, and DST-correct schedule anchoring — all pure functions, all driven by the
-   feed's own header timestamp, never wall-clock.
+   feed's own header timestamp, never wall-clock. The zone the schedule is local to comes
+   from the feed too: the loader reads `agency_timezone` from `agency.txt` and stamps it
+   on every profile as a typed `ZONE_INFO` attribute, so the delay stage hard-codes no
+   zone at all.
 
 ## Delays, not positions — and why
 

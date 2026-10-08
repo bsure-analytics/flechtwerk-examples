@@ -5,9 +5,14 @@ Drives the stages' pure cores straight off the committed fixtures
 ``fixtures/make_fixtures.py``): the loader's profile projection, and (added with
 the later stages) the ingest decode + the delay computation.
 """
-from pathlib import Path
-
+import io
+import zipfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
+from flechtwerk import Event
 
 from examples.gtfs_german_rail_delays.attributes import (
     DELAY_S,
@@ -29,6 +34,7 @@ from examples.gtfs_german_rail_delays.attributes import (
     STOP_SEQ,
     STOPS,
     STOPS_TOTAL,
+    TIMEZONE,
     TRIP,
     TRIP_ID,
 )
@@ -45,6 +51,16 @@ from examples.gtfs_german_rail_delays.loader import build_profiles, parse_gtfs_t
 FIXTURES = Path(__file__).parent / "fixtures"
 FV_ZIP = (FIXTURES / "fv_sample.zip").read_bytes()
 RT_PB = (FIXTURES / "rt_sample.pb").read_bytes()
+BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def _with_agency(agency_txt: str) -> bytes:
+    """The fixture zip with its ``agency.txt`` replaced — every other table verbatim."""
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(FV_ZIP)) as src, zipfile.ZipFile(out, "w") as dst:
+        for name in src.namelist():
+            dst.writestr(name, agency_txt if name == "agency.txt" else src.read(name))
+    return out.getvalue()
 
 
 # --- parse_gtfs_time ---
@@ -89,6 +105,27 @@ def test_build_profiles_destination_is_last_stop() -> None:
     assert profile[DESTINATION] == profile[STOPS][-1][STOP_NAME]
 
 
+def test_build_profiles_carries_the_feed_timezone() -> None:
+    # Every agency in the fixture names Europe/Berlin; the profile carries it typed and
+    # puts the IANA key on the wire.
+    for _, profile in build_profiles(FV_ZIP, "v1"):
+        assert profile[TIMEZONE] == BERLIN
+        assert profile.raw["timezone"] == "Europe/Berlin"
+
+
+def test_build_profiles_rejects_a_feed_with_mixed_agency_timezones() -> None:
+    feed = _with_agency("agency_id,agency_name,agency_url,agency_timezone\n"
+                        "1,A,https://a.example,Europe/Berlin\n2,B,https://b.example,Europe/Vienna\n")
+    with pytest.raises(ValueError, match="exactly one agency_timezone"):
+        list(build_profiles(feed, "v1"))
+
+
+def test_build_profiles_rejects_an_unknown_agency_timezone() -> None:
+    feed = _with_agency("agency_id,agency_name,agency_url,agency_timezone\n1,A,https://a.example,Mars/Olympus\n")
+    with pytest.raises(ValueError, match="unknown time zone"):
+        list(build_profiles(feed, "v1"))
+
+
 def test_build_profiles_route_type_filter_excludes_non_rail() -> None:
     # The fixture is all rail (route_type 2); filtering to an empty set yields nothing,
     # proving the filter is applied before projection (a national feed's buses stay out).
@@ -122,13 +159,19 @@ def test_decode_feed_preserves_wire_types_faithfully() -> None:
 
 def test_service_time_to_utc_summer_and_winter_dst() -> None:
     # Local noon on a summer day is 10:00Z (CEST, +2); on a winter day 11:00Z (CET, +1).
-    assert service_time_to_utc("20260722", 12 * 3600) == datetime(2026, 7, 22, 10, 0, tzinfo=timezone.utc)
-    assert service_time_to_utc("20260115", 12 * 3600) == datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc)
+    assert service_time_to_utc("20260722", 12 * 3600, BERLIN) == datetime(2026, 7, 22, 10, 0, tzinfo=timezone.utc)
+    assert service_time_to_utc("20260115", 12 * 3600, BERLIN) == datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc)
+
+
+def test_service_time_to_utc_follows_the_given_zone() -> None:
+    # Nothing is pinned to Berlin: the same clock-time in New York (EDT, -4) is 16:00Z.
+    assert service_time_to_utc("20260722", 12 * 3600, ZoneInfo("America/New_York")) == \
+        datetime(2026, 7, 22, 16, 0, tzinfo=timezone.utc)
 
 
 def test_service_time_to_utc_past_midnight() -> None:
     # "25:30" on the 2026-07-22 service day is 01:30 local next day = 23:30Z same day.
-    assert service_time_to_utc("20260722", parse_gtfs_time("25:30:00")) == \
+    assert service_time_to_utc("20260722", parse_gtfs_time("25:30:00"), BERLIN) == \
         datetime(2026, 7, 22, 23, 30, tzinfo=timezone.utc)
 
 
@@ -164,13 +207,26 @@ def test_effective_delays_no_data_resets() -> None:
 
 def test_locate_before_mid_and_terminated() -> None:
     stops = [_stop("A", 0, 0), _stop("B", 100, 100), _stop("C", 200, 200)]
-    base = service_time_to_utc("20260722", 0)                             # A's scheduled departure
+    base = service_time_to_utc("20260722", 0, BERLIN)                     # A's scheduled departure
     delays = [0, 0, 0]
-    assert locate(stops, delays, "20260722", base - timedelta(seconds=10)).next_idx == 0  # before origin
+    assert locate(stops, delays, "20260722", BERLIN, base - timedelta(seconds=10)).next_idx == 0  # before origin
     mid = base + timedelta(seconds=150)                                   # between B and C
-    prog = locate(stops, delays, "20260722", mid)
+    prog = locate(stops, delays, "20260722", BERLIN, mid)
     assert prog.next_idx == 2 and prog.stops_done == 2
-    assert locate(stops, delays, "20260722", base + timedelta(seconds=1000)) is None  # arrived → nothing
+    assert locate(stops, delays, "20260722", BERLIN, base + timedelta(seconds=1000)) is None  # arrived → nothing
+
+
+def test_build_delay_state_falls_back_to_the_local_service_day() -> None:
+    # An update without trip.start_date takes the service day from feed_ts — in the feed's
+    # zone, not UTC. 23:30Z on 21 July is 01:30 on 22 July in Berlin: on the 22nd's
+    # schedule the train is between A (01:00) and B (02:00); on the 21st's it would have
+    # arrived a day ago and the record would vanish.
+    profile = Event({
+        TRIP_ID: "t", LINE: "ICE 1", ROUTE_TYPE: 2, TIMEZONE: BERLIN,
+        STOPS: [_stop("A", 3600, 3600), _stop("B", 7200, 7200)],
+    })
+    record = build_delay_state(profile, Event({}), datetime(2026, 7, 21, 23, 30, tzinfo=timezone.utc))
+    assert record is not None and record[NEXT_STOP] == "B"
 
 
 def test_build_delay_state_golden_on_a_real_fixture_trip() -> None:

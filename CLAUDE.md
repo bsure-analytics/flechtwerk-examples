@@ -177,6 +177,12 @@ sessionization, the one example needing an API key) and `f1_live_timing`
   (`DATE as DATE_CODEC`). Never rename the attribute to dodge the codec. No example
   needs the qualified form today, because nothing collides. The old
   `flechtwerk.attribute.codecs` module is gone, and nothing here imported it.
+- **A time zone in a record goes through `ZONE_INFO`** (0.12.0+) — a `ZoneInfo`
+  on the wire as its IANA key, decoded strictly (an unknown or wrong-case key raises
+  `ValueError`). `gtfs_german_rail_delays` is the user: the loader reads the feed's
+  `agency_timezone` into each profile's `TIMEZONE`, and `delays` anchors schedule
+  clock-times in that zone instead of a hard-coded `Europe/Berlin`. A zone is data
+  when the source states it; take it from there rather than pinning a constant.
 - **Binary in a record goes through `BYTES`** (0.9.3+) — strict canonical base64,
   the one atom whose Python type isn't JSON-native. No example needs it today, and
   that is a decision, not an omission: binary is decoded *at the edge* here (GTFS

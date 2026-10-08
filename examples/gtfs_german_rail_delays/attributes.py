@@ -15,7 +15,7 @@ time** ``FEED_TS`` — never wall-clock.
 """
 from typing import Final
 
-from flechtwerk.attribute import ANY, Attribute, DATETIME, DICT, FLOAT, INT, LIST, RECORD, STR
+from flechtwerk.attribute import ANY, Attribute, DATETIME, DICT, FLOAT, INT, LIST, RECORD, STR, ZONE_INFO
 
 # --- Config topics (one record per source/feed; the wire key is its name) ---
 
@@ -64,6 +64,11 @@ ROUTE_TYPE: Final = Attribute("route_type", INT)
 """The GTFS route type (``2`` = rail) — the scope filter and a dashboard facet."""
 DESTINATION: Final = Attribute("destination", STR, optional=True)
 """The trip's final stop name (``trips.txt`` carries no headsign, so we derive it)."""
+TIMEZONE: Final = Attribute("timezone", ZONE_INFO)
+"""The feed's ``agency_timezone`` — the zone every ``arr_s``/``dep_s`` in ``STOPS``
+is local to (GTFS reads stop times in the agency's zone, never the stop's). Read
+from ``agency.txt`` by the loader, so the delay stage hard-codes no zone; the
+``ZONE_INFO`` codec rejects a key the tz database doesn't know."""
 STOPS: Final = Attribute("stops", LIST(DICT(ANY)))
 """The ordered schedule, one raw dict per stop with keys ``seq``, ``stop_id``,
 ``name``, ``lat``, ``lon``, ``arr_s``, ``dep_s`` (GTFS seconds since local midnight,
