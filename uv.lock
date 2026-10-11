@@ -217,7 +217,7 @@ wheels = [
 
 [[package]]
 name = "flechtwerk"
-version = "0.12.0"
+version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiokafka", extra = ["zstd"] },
@@ -225,9 +225,9 @@ dependencies = [
     { name = "reactor-di" },
     { name = "rocksdict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/33/2e/aee7dce7a410290983688490286c4a390cd80cf88605635572e9c4516899/flechtwerk-0.12.0.tar.gz", hash = "sha256:8d454944f23d90126bad7eb67e1e15f0fbe4aef0709e32031da0e6c261a26136", size = 675080, upload-time = "2026-10-08T09:51:26.189Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/07/1fbc7cac94e746b35d8fbc0d9b303cc42e6b944c572bae3cdff666824b8c/flechtwerk-0.13.0.tar.gz", hash = "sha256:3420275d917c19a355fec9f7f25d737c68a26268fc3c571d976d0f7846691aff", size = 684576, upload-time = "2026-10-11T13:21:48.59Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/56/3d3b2106d79d349bb3f4c69f41013672ab81637b0ca370e0736bd6a306d4/flechtwerk-0.12.0-py3-none-any.whl", hash = "sha256:471a52961c30d4cd685f3c263da91c57587cd3bdd907e76b12462144d000d3e1", size = 116553, upload-time = "2026-10-08T09:51:24.966Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/8f/aa0b7b6976a1c14ae6ddb8d027a893215cf4573e5c04b43060b7df2e1e46/flechtwerk-0.13.0-py3-none-any.whl", hash = "sha256:fca7df0e1ad42cf53e08d9263e74ede8ca965005563c2b237c99f96806c543e5", size = 117091, upload-time = "2026-10-11T13:21:47.251Z" },
 ]
 
 [package.optional-dependencies]
@@ -258,7 +258,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.12.0" },
+    { name = "flechtwerk", extras = ["mqtt"], specifier = "==0.13.0" },
     { name = "gtfs-realtime-bindings", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "tzdata", specifier = ">=2024.1" },
@@ -507,11 +507,11 @@ wheels = [
 
 [[package]]
 name = "reactor-di"
-version = "0.5.3"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/21/01/ed5f1eba9db1b25909cdd57ca6a6c01079bad9fcbfb91f66b836892e4435/reactor_di-0.5.3.tar.gz", hash = "sha256:322c614582bbfefc4a39cffb3378526fc9b0ace56489a88244cfa97598a9bb12", size = 101801, upload-time = "2026-04-25T21:34:41.319Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/7f/c4c09df2764166699b919d52d3bb879e506e6972da985984ad3ac317025d/reactor_di-0.6.0.tar.gz", hash = "sha256:14cda4ab8a25415e96a513d11db205c22ec4cec1af9dd247930b84c68a5549c2", size = 101872, upload-time = "2026-10-11T09:23:20.606Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/d6/acdea23d97774efbf987ebf719d970c5548bf7ea8bd0333945946d502b20/reactor_di-0.5.3-py3-none-any.whl", hash = "sha256:9f8f0e1b7e84336bb7508d8f722016936db583541d7b5c14350acb925405831a", size = 20807, upload-time = "2026-04-25T21:34:40.038Z" },
+    { url = "https://files.pythonhosted.org/packages/72/8e/1434711a05d36bfb2c5b6b792479faeb10fcffe3b0fd360c0b04bcf00b4a/reactor_di-0.6.0-py3-none-any.whl", hash = "sha256:350a9dc1d6dce67229bac3a952fae068df8a17022c502cafde376b2b85036ca5", size = 20866, upload-time = "2026-10-11T09:23:19.391Z" },
 ]
 
 [[package]]

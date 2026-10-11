@@ -31,6 +31,7 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
 from flechtwerk import Event, IncomingMessage, Message, State
 from flechtwerk.module import Flechtwerk
+from flechtwerk.attribute import ANY, Attribute
 
 from examples.f1_live_timing import tape
 from examples.f1_live_timing.attributes import (
@@ -236,7 +237,7 @@ async def _board_records() -> list[dict]:
     for line in tape.merge(fetches, bound=None, limit=10_000):
         value = Event({SESSION: SESSION_PATH, FEED: line.feed, OFFSET_MS: line.offset_ms,
                        EVENT_TIME: tape.event_time(t0_ms, line.offset_ms)})
-        value.raw[PAYLOAD] = line.payload
+        value[Attribute(PAYLOAD, ANY)] = line.payload
         message = IncomingMessage(key=SESSION_PATH, offset=0, partition=0, timestamp=None,
                                   topic=TIMING_TOPIC, value=value)
         async for item in run_board(state, message):

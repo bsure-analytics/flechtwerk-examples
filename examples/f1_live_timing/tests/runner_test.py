@@ -32,6 +32,7 @@ from flechtwerk.observer import Observer
 from flechtwerk.state import ChangelogStateStore
 from flechtwerk.testing import FakeKafkaConsumer, FakeKafkaProducer, InMemoryStateStore, make_record
 from flechtwerk.transformer import Task
+from flechtwerk.attribute import ANY, Attribute
 
 from examples.f1_live_timing import tape
 from examples.f1_live_timing.attributes import (
@@ -509,7 +510,7 @@ async def test_a_416_is_a_no_op_not_an_error() -> None:
         await _drain(runner)
         # Everything is consumed; force one more read by clearing `done`.
         state = await runner.tasks[0].store.get(SESSION_PATH)
-        del state.raw[DONE.name]
+        del state[DONE]
         await runner.tasks[0].store.put(SESSION_PATH, state)
         producer.sent.clear()
         await _poll(runner)
@@ -627,7 +628,7 @@ async def test_the_follow_target_never_writes_the_same_session_twice() -> None:
         first = len([1 for topic, _ in producer.sent if topic == SESSIONS_TOPIC])
         # Force the interval to have elapsed, so the index really is re-read.
         state = await runner.tasks[0].store.get(key)
-        state.raw["checked_ms"] = 0
+        state[Attribute("checked_ms", ANY)] = 0
         await runner.tasks[0].store.put(key, state)
         producer.sent.clear()
         await _poll(runner, key)
@@ -667,7 +668,7 @@ def _tape_records() -> list[bytes]:
     for line in tape.merge(fetches, bound=None, limit=10_000):
         record = Event({SESSION: SESSION_PATH, FEED: line.feed, OFFSET_MS: line.offset_ms,
                         EVENT_TIME: tape.event_time(t0_ms, line.offset_ms)})
-        record.raw[PAYLOAD] = line.payload
+        record[Attribute(PAYLOAD, ANY)] = line.payload
         values.append(json.dumps(record.raw).encode())
     return values
 

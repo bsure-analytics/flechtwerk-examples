@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from flechtwerk import Event, IncomingMessage, Message, State
+from flechtwerk.attribute import ANY, Attribute
 
 from examples.f1_live_timing import board, tape
 from examples.f1_live_timing.attributes import (
@@ -628,7 +629,7 @@ def _incoming(feed: str, payload, *, offset_ms: int = 0,
               session: str = SESSION_PATH) -> IncomingMessage:
     record = Event({SESSION: session, FEED: feed, OFFSET_MS: offset_ms,
                     EVENT_TIME: T0 + timedelta(milliseconds=offset_ms)})
-    record.raw[PAYLOAD] = payload
+    record[Attribute(PAYLOAD, ANY)] = payload
     return IncomingMessage(key=session, offset=0, partition=0, timestamp=None,
                            topic=TIMING_TOPIC, value=record)
 

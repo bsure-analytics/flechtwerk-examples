@@ -53,6 +53,7 @@ from typing import Any, Final
 
 import httpx
 from flechtwerk import Config, Event, Extractor, Message, State
+from flechtwerk.attribute import ANY, Attribute
 
 from . import tape
 from .attributes import (
@@ -637,10 +638,10 @@ def session_config(session: dict[str, Any], year: int, *, telemetry: bool) -> di
 def _tape_record(path: str, line: tape.Line, t0_ms: int) -> Event:
     """One framed line as a ``f1-timing`` record — the envelope plus the payload, whole.
 
-    The payload is written straight into ``.raw`` under :data:`~.attributes.PAYLOAD` rather
-    than declared as an attribute: it is a foreign, per-feed schema that must survive
-    round-tripping untouched, and nesting it keeps a feed's ``Status`` or ``Utc`` from
-    colliding with the envelope's own fields.
+    The payload is written under :data:`~.attributes.PAYLOAD` through an ad-hoc ``ANY``
+    attribute rather than a declared one: it is a foreign, per-feed schema that must survive
+    round-tripping untouched (``ANY`` stores JSON verbatim), and nesting it keeps a feed's
+    ``Status`` or ``Utc`` from colliding with the envelope's own fields.
     """
     record = Event({
         SESSION: path,
@@ -648,7 +649,7 @@ def _tape_record(path: str, line: tape.Line, t0_ms: int) -> Event:
         OFFSET_MS: line.offset_ms,
         EVENT_TIME: tape.event_time(t0_ms, line.offset_ms),
     })
-    record.raw[PAYLOAD] = line.payload
+    record[Attribute(PAYLOAD, ANY)] = line.payload
     return record
 
 
