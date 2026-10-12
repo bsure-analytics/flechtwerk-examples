@@ -129,8 +129,9 @@ async def request_pair(slug: str, ticker: str, yes_outcome: str) -> None:
 async def retire(slug: str) -> None:
     """Write a tombstone (null value) for a pair, keyed by slug — removes it from the config.
 
-    Compacted-topic tombstone: the extractors' config bootstrap treats an empty value as a
-    deletion, so the pair drops out of every instance's active set on the next config drain."""
+    Compacted-topic tombstone: the extractors' config machinery deletes the key, so the pair
+    drops out of every instance's active set on the next config drain, and log compaction
+    eventually removes it from the topic (it would keep an empty ``b""`` value forever)."""
     producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP_SERVERS)
     await producer.start()
     try:
