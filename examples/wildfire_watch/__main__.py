@@ -20,8 +20,7 @@ reads an env-driven ``application_id`` to prove transactional fencing), restated
 
 The key is read **lazily, per stage**, so ``run-wildfire-tracker`` works without one — only the
 poller needs NASA credentials. ``flechtwerk`` also ships a keyring/secrets facility that could
-carry the key as an encrypted config attribute; that deserves its own example (see the README's
-extension points) rather than being smuggled in here.
+carry the key as an encrypted config attribute; ``examples/tmdb_catalog`` is that example.
 """
 import os
 import sys

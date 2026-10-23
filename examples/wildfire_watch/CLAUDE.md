@@ -1,7 +1,8 @@
 # Wildfire Watch (`wildfire`)
 
 **Wildfire Watch**
-(`wildfire`) is the spatiotemporal-sessionization case and the **only example needing an API key**:
+(`wildfire`) is the spatiotemporal-sessionization case and the **first example needing an API key** (TMDB Catalog is the second, and carries its
+credential encrypted on the config topic):
 `ingest` polls NASA FIRMS' area API for two VIIRS satellites per watch region (a compacted
 `wildfire-regions` config record carrying a place name **and its cached bounding box** — `request.py`
 geocodes at request time via Nominatim's `boundingbox`, the one field no other example reads, and

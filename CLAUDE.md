@@ -113,7 +113,7 @@ names a leader before the Kafka broker finishes becoming one, so the first produ
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`, `f1`; the sink's ops key is `sink`) — and one
+`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`, `f1`, `tmdb`; the sink's ops key is `sink`) — and one
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …). The two are
 **not independent**: the key is the *first token of the folder*, i.e. of
 snake_case(title) — `odds_arbitrage_radar` → `odds`, `wildfire_watch` → `wildfire`. Every
@@ -137,24 +137,37 @@ An extractor
 takes one config record per poll target, keyed on a compacted config topic (any producer,
 Kafbat included, works too); a transformer consumes a partitioned input topic instead.
 
-The four examples with load-bearing design rationale carry it in their own
+The five examples with load-bearing design rationale carry it in their own
 `examples/<name>/CLAUDE.md`, which loads only when you work under that directory:
 `adsb_flight_tracker` (staged polygon-dictionary reverse geocoding),
 `odds_arbitrage_radar` (N-source fan-in), `wildfire_watch` (spatiotemporal
-sessionization, the one example needing an API key) and `f1_live_timing`
-(the append-only-file cursor).
+sessionization, the first example needing an API key), `f1_live_timing`
+(the append-only-file cursor) and `tmdb_catalog` (reference data as a change
+stream, the credential encrypted on the config topic).
 
 ## Conventions carried from the framework (keep these)
 
 - **No environment-variable magic inside stages.** All configuration is injected
   by the caller (`Flechtwerk.of(...)`, or a config topic record). `setup.py` /
-  `__main__.py` are the ops callers and may hold demo constants. Two `__main__.py`s
+  `__main__.py` are the ops callers and may hold demo constants. Three `__main__.py`s
   deliberately read the environment *as the ops caller* and inject what they find:
-  `chaos_harness` (an env-driven `application_id`, to prove transactional fencing) and
+  `chaos_harness` (an env-driven `application_id`, to prove transactional fencing),
   `wildfire_watch` (the `FIRMS_MAP_KEY` credential NASA requires, injected as
-  `FirmsIngest(map_key=…)`). The rule holds where it matters — no stage touches
+  `FirmsIngest(map_key=…)`) and `tmdb_catalog` (the keyring *path*, `FLECHTWERK_KEYRING`,
+  read by `examples/_setup.load_keyring` and injected as `_runner.run(keyring=…)`). The
+  rule holds where it matters — no stage touches
   `os.environ`. `wildfire_watch/ingest.py` therefore has **no module-level `stage`**
   singleton, since a credential can't be baked in at import time.
+- **A credential on a config topic goes through `ENCRYPTED`** (`flechtwerk[secrets]`,
+  0.17.0) — `tmdb_catalog` is the user: the token is an `ENCRYPTED(STR)` attribute of each
+  feed record (ciphertext `flenc:jwe:…` on the wire), written by `request-tmdb token` from
+  stdin and decrypted on read by stages started with the keyring, which the ops caller injects
+  through `_runner.run(keyring=…)`. `wildfire_watch` keeps the env-var route as the
+  pre-keyring precedent. Key material never enters a stage module or a topic, and the token
+  rides on every feed record because the config store is one namespace the extractor polls
+  entirely. The secret counters (`flechtwerk_secret_decrypts_total`,
+  `flechtwerk_keyring_keys_loaded`) on the metrics endpoint are the proof it is in use. Host
+  metrics ports `9124`/`9125` are the TMDB stages'.
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's
   `PrometheusObserver` calls `.labels(**metrics_labels)` on every metric, so `{}`
   crashes at startup. Pass at least one label (e.g. `{"client_id": client_id}`).

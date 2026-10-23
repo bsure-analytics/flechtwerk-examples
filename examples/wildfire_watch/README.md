@@ -392,8 +392,8 @@ Region geocoding uses [Nominatim](https://nominatim.org/) — data ©
   example already teaches that, and reusing its dictionaries would couple the two.
 - **Encrypted MAP_KEY in the config record** — the framework ships a keyring/secrets facility
   (`flechtwerk.secrets`, `keyring=` on `Flechtwerk.of`) that could carry the key as an encrypted
-  config attribute instead of an environment variable. No example uses it yet, and it deserves
-  its own.
+  config attribute instead of an environment variable. [TMDB Catalog](../tmdb_catalog) is that
+  example, for its own token; the same move would work here.
 - **Dynamic re-tiling of the world watch** — an ops cron re-running `request-wildfire world`
   as the burn belt moves, rather than the operator doing it. The mechanism (re-tile, diff,
   tombstone) already exists; only the scheduling is missing, and it belongs to ops, not to a
