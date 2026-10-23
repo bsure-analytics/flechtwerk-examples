@@ -82,3 +82,9 @@ scrape_configs:
         labels: { example: f1_live_timing, stage: extractor }
       - targets: ["host.docker.internal:9123"]
         labels: { example: f1_live_timing, stage: transformer }
+      # tmdb_catalog runs two host stages under one example label: the change-feed extractor (9124)
+      # and the fetch-and-version catalog transformer (9125).
+      - targets: ["host.docker.internal:9124"]
+        labels: { example: tmdb_catalog, stage: extractor }
+      - targets: ["host.docker.internal:9125"]
+        labels: { example: tmdb_catalog, stage: transformer }

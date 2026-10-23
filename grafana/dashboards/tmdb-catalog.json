@@ -1,0 +1,488 @@
+{
+  "uid": "flechtwerk-tmdb",
+  "title": "Flechtwerk — TMDB Catalog",
+  "tags": [
+    "flechtwerk"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Movies",
+      "description": "Distinct movies in the catalog: the ReplacingMergeTree current table, read FINAL (the latest version per id).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS movies FROM flechtwerk.tmdb_movies_current FINAL"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "TV series",
+      "description": "Distinct TV series in the catalog (current table, FINAL).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS tv_series FROM flechtwerk.tmdb_tv_current FINAL"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "People",
+      "description": "Distinct people in the catalog (current table, FINAL).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS people FROM flechtwerk.tmdb_people_current FINAL"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "",
+      "description": "TMDB's required attribution.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "![TMDB](https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg)\n\nThis product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB."
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Change feed per day (distinct ids)",
+      "description": "Distinct ids TMDB listed per feed and calendar day. uniqExact(id), not count(): an id listed while its day was open and again at the day's closing re-list is two rows.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "feed"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^ids (.*)$",
+            "renamePattern": "$1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT toDateTime(changed_on) AS time, feed, uniqExact(id) AS ids FROM flechtwerk.tmdb_changes WHERE $__timeFilter(toDateTime(changed_on)) GROUP BY time, feed ORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Versions per hour",
+      "description": "New catalog versions per hour of version_at, by media type. A version is emitted only when the content hash moved; popularity is inside the hash, so a daily popularity recompute shows up here.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "media_type"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^versions (.*)$",
+            "renamePattern": "$1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT * FROM (SELECT toStartOfHour(version_at) AS time, 'movie' AS media_type, count() AS versions FROM flechtwerk.tmdb_movies WHERE $__timeFilter(version_at) GROUP BY time UNION ALL SELECT toStartOfHour(version_at) AS time, 'tv' AS media_type, count() AS versions FROM flechtwerk.tmdb_tv WHERE $__timeFilter(version_at) GROUP BY time UNION ALL SELECT toStartOfHour(version_at) AS time, 'person' AS media_type, count() AS versions FROM flechtwerk.tmdb_people WHERE $__timeFilter(version_at) GROUP BY time) ORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Movie genres",
+      "description": "Movies per genre, from the current table's genres array (ARRAY JOIN).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "genre",
+        "showValue": "auto",
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT genre, count() AS movies FROM flechtwerk.tmdb_movies_current FINAL ARRAY JOIN genres AS genre GROUP BY genre ORDER BY movies DESC LIMIT 15"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Most credited people",
+      "description": "People with the most credit rows (cast and crew, movies and TV). tmdb_credits is a ReplacingMergeTree keyed by (media_type, media_id, credit_id), read FINAL.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT person_id, any(name) AS name, count() AS credits, uniqExact(media_id) AS titles FROM flechtwerk.tmdb_credits FINAL GROUP BY person_id ORDER BY credits DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Latest versions",
+      "description": "The 25 most recent versions across movies, TV series and people.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT * FROM ((SELECT version_at, 'movie' AS media_type, id, title AS name, version FROM flechtwerk.tmdb_movies ORDER BY version_at DESC LIMIT 25) UNION ALL (SELECT version_at, 'tv' AS media_type, id, name AS name, version FROM flechtwerk.tmdb_tv ORDER BY version_at DESC LIMIT 25) UNION ALL (SELECT version_at, 'person' AS media_type, id, name AS name, version FROM flechtwerk.tmdb_people ORDER BY version_at DESC LIMIT 25)) ORDER BY version_at DESC LIMIT 25"
+        }
+      ]
+    }
+  ]
+}
