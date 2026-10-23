@@ -1,4 +1,4 @@
-"""The pure half of the TMDB Catalog — URL building, change-page parsing, projection, hashing.
+"""The pure half of TMDB - The Movie Database — URL building, change-page parsing, projection, hashing.
 
 Nothing here touches the framework, the network or a clock, so the logic tier drives it straight
 off the captured fixtures (``tests/fixtures/``) and the stages stay thin: ``changes`` pages

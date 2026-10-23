@@ -4,7 +4,7 @@ authors = [
 ]
 dependencies = [
     # The `secrets` extra installs `flechtctl` (the keyring and the `ENCRYPTED` codec) — used
-    # ONLY by tmdb_catalog, whose API credential rides encrypted on its config topic.
+    # ONLY by the_movie_database, whose API credential rides encrypted on its config topic.
     "flechtwerk[mqtt,secrets]==0.17.0",
     # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_german_rail_delays
     # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
@@ -114,11 +114,11 @@ setup-f1 = { cmd = "python -m examples.f1_live_timing.setup", help = "Create the
 request-f1 = { cmd = "python -m examples.f1_live_timing.request", help = "Choose sessions to ingest: uv run poe request-f1 season [2026] | follow [2026] | session <path> (or: retire <path|season-2026>); no args lists them" }
 run-f1-ingest = { cmd = "python -m examples.f1_live_timing ingest", help = "Run F1 stage 1: read/tail the live-timing tape -> f1-timing" }
 run-f1-timing = { cmd = "python -m examples.f1_live_timing timing", help = "Run F1 stage 2: fold timing patches into the board -> f1-status / f1-events / f1-telemetry" }
-setup-tmdb = { cmd = "python -m examples.tmdb_catalog.setup", help = "Create the TMDB Catalog topics and apply the ClickHouse schema (no feed seeded — use request-tmdb)" }
-request-tmdb = { cmd = "python -m examples.tmdb_catalog.request", help = "Store the TMDB token encrypted on tmdb-feeds / set an epoch / retire: uv run poe request-tmdb token < FILE | since 2026-07-25 [movie|tv|person] | retire [feed]; no args lists them" }
-run-tmdb-changes = { cmd = "python -m examples.tmdb_catalog changes", help = "Run TMDB stage 1: back up each feed's daily change pages as delivered -> tmdb-changes-raw (needs the keyring)" }
-run-tmdb-split = { cmd = "python -m examples.tmdb_catalog split", help = "Run TMDB stage 2: split change pages into per-entity changes, deduping the open day -> tmdb-changes" }
-run-tmdb-catalog = { cmd = "python -m examples.tmdb_catalog catalog", help = "Run TMDB stage 3: fetch, project and version each changed entity -> tmdb-movies / tmdb-tv / tmdb-people / tmdb-credits" }
+setup-tmdb = { cmd = "python -m examples.the_movie_database.setup", help = "Create the TMDB - The Movie Database topics and apply the ClickHouse schema (no feed seeded — use request-tmdb)" }
+request-tmdb = { cmd = "python -m examples.the_movie_database.request", help = "Store the TMDB token encrypted on tmdb-feeds / set an epoch / retire: uv run poe request-tmdb token < FILE | since 2026-07-25 [movie|tv|person] | retire [feed]; no args lists them" }
+run-tmdb-changes = { cmd = "python -m examples.the_movie_database changes", help = "Run TMDB stage 1: back up each feed's daily change pages as delivered -> tmdb-changes-raw (needs the keyring)" }
+run-tmdb-split = { cmd = "python -m examples.the_movie_database split", help = "Run TMDB stage 2: split change pages into per-entity changes, deduping the open day -> tmdb-changes" }
+run-tmdb-catalog = { cmd = "python -m examples.the_movie_database catalog", help = "Run TMDB stage 3: fetch, project and version each changed entity -> tmdb-movies / tmdb-tv / tmdb-people / tmdb-credits" }
 
 [tool.poe.tasks.run-adsb]
 help = "Run all four ADS-B stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator)"
@@ -305,7 +305,7 @@ help = "Quickstart: set up F1 topics/schema, then run both stages (restart-on-cr
 sequence = ["setup-f1", "run-f1"]
 
 [tool.poe.tasks.run-tmdb]
-help = "Run all three TMDB Catalog stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator). Needs the keyring."
+help = "Run all three TMDB - The Movie Database stages together, restarting any that crashes (a poor-man's let-it-crash orchestrator). Needs the keyring."
 # The same poor-man's supervisor as run-adsb/run-gdelt/run-gtfs/run-smard/run-odds/run-wildfire/run-f1
 # (see run-adsb's notes on the process-group / Ctrl-C handling): plain `python -m` children in this
 # shell's process group, and a trap that `kill 0`s the whole group on Ctrl-C/TERM so nothing is
@@ -323,13 +323,13 @@ shell = """
 trap 'trap "" TERM; kill 0 2>/dev/null; exit 0' INT TERM
 supervise() { until "$@"; do echo "[run-tmdb] $* exited $? — restarting in 10s"; sleep 10; done; }
 for stage in changes split catalog; do
-  supervise python -m examples.tmdb_catalog $stage &
+  supervise python -m examples.the_movie_database $stage &
 done
 wait
 """
 
 [tool.poe.tasks.tmdb]
-help = "Quickstart: set up TMDB Catalog topics/schema, then run all three stages (restart-on-crash). Store the token first with request-tmdb."
+help = "Quickstart: set up TMDB - The Movie Database topics/schema, then run all three stages (restart-on-crash). Store the token first with request-tmdb."
 sequence = ["setup-tmdb", "run-tmdb"]
 
 [tool.poe.tasks.cov]

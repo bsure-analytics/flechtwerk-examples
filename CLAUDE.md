@@ -117,13 +117,16 @@ retries once; metadata-level waiting can't close that window).
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …). The two are
 **not independent**: the key is the *first token of the folder*, i.e. of
 snake_case(title) — `odds_arbitrage_radar` → `odds`, `wildfire_watch` → `wildfire`. Every
-example obeys this (the sink is the lone exception, ops key `sink`), so don't invent a key
+example obeys this but two: the sink (ops key `sink`) and `TMDB - The Movie Database`,
+whose folder `the_movie_database` spells out the acronym and drops it, so its key `tmdb` is
+the title's first token rather than the folder's — still no invented key, since
+`tmdb` appears in the title. Don't invent a key
 that doesn't appear in the title: a synonym (`fires` for `wildfire_watch`) leaves the repo
 with two competing prefixes for one example and every derived name has to pick a side.
 Everything else derives from those two: topics and consumer groups are
 `<key>-*`; ClickHouse tables are `<key>_*`, prefixed by the pipeline the data
 belongs to (which is why the sink writes `adsb_positions`); the folder is
-snake_case(title); the Grafana dashboard file is kebab-case(title) under
+snake_case(title) (TMDB's excepted, above); the Grafana dashboard file is kebab-case(title) under
 `grafana/dashboards/`, its title `Flechtwerk — <Title>`, its uid
 `flechtwerk-<key>` (a secondary dashboard suffixes it: `flechtwerk-adsb-events`);
 poe targets are `setup-<key>` / `run-<key>[-<stage>]` / quickstart `<key>`; the
@@ -142,7 +145,7 @@ The five examples with load-bearing design rationale carry it in their own
 `adsb_flight_tracker` (staged polygon-dictionary reverse geocoding),
 `odds_arbitrage_radar` (N-source fan-in), `wildfire_watch` (spatiotemporal
 sessionization, the first example needing an API key), `f1_live_timing`
-(the append-only-file cursor) and `tmdb_catalog` (reference data as a change
+(the append-only-file cursor) and `the_movie_database` (reference data as a change
 stream, the credential encrypted on the config topic).
 
 ## Conventions carried from the framework (keep these)
@@ -152,7 +155,7 @@ stream, the credential encrypted on the config topic).
   `__main__.py` are the ops callers and may hold demo constants. Three `__main__.py`s
   deliberately read the environment *as the ops caller* and inject what they find:
   `chaos_harness` (an env-driven `application_id`, to prove transactional fencing), and
-  `wildfire_watch` and `tmdb_catalog` (the keyring *path*, `FLECHTWERK_KEYRING`, read by
+  `wildfire_watch` and `the_movie_database` (the keyring *path*, `FLECHTWERK_KEYRING`, read by
   `examples/_setup.load_keyring` and injected as `_runner.run(keyring=…)`). The rule holds
   where it matters — no stage touches `os.environ`, and since no credential is a constructor
   argument any more, every stage module has its module-level `stage` singleton.
@@ -161,7 +164,7 @@ stream, the credential encrypted on the config topic).
   the wire, decrypted on read by stages started with the keyring, which the ops caller injects
   through `_runner.run(keyring=…)`. Key material never enters a stage module or a topic in the
   clear. The config store is one namespace that the extractor polls entirely, which leaves two
-  shapes, and the repo shows both: **on every target record** (`tmdb_catalog` — the token is an
+  shapes, and the repo shows both: **on every target record** (`the_movie_database` — the token is an
   attribute of each of three feed records, so there is nothing to skip) or **one record on a
   topic of its own** (`wildfire_watch` — the MAP_KEY on `wildfire-credentials`, read with
   `self.configs.get("firms")`; the extractor's `poll`/`enrich_config` skip that entry, `firms`

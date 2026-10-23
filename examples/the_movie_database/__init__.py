@@ -1,4 +1,4 @@
-"""TMDB Catalog — a local copy of The Movie Database, kept current from its daily change feeds.
+"""TMDB - The Movie Database — a local copy of TMDB, kept current from its daily change feeds.
 
 Three host processes over TMDB's API v3:
 

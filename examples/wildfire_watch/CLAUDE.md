@@ -1,7 +1,7 @@
 # Wildfire Watch (`wildfire`)
 
 **Wildfire Watch**
-(`wildfire`) is the spatiotemporal-sessionization case and the **first example needing an API key** (TMDB Catalog is the second, and carries its
+(`wildfire`) is the spatiotemporal-sessionization case and the **first example needing an API key** (TMDB - The Movie Database is the second, and carries its
 credential encrypted on the config topic). Its MAP_KEY rides encrypted too, as ONE record keyed
 `firms` on a config topic of its own, `wildfire-credentials` (`ENCRYPTED(STR)`, written from stdin by
 `request-wildfire key`, decrypted on read via the keyring `__main__` injects); because the config store

@@ -1,4 +1,4 @@
-"""Run a TMDB Catalog stage against the shared stack.
+"""Run a TMDB - The Movie Database stage against the shared stack.
 
     uv run poe setup-tmdb            # config topic + six data topics + ClickHouse schema
     uv run poe request-tmdb …        # store the encrypted token / set an epoch / retire a feed
@@ -6,7 +6,7 @@
     uv run poe run-tmdb-split        # stage 2: split pages into per-entity changes -> tmdb-changes
     uv run poe run-tmdb-catalog      # stage 3: fetch, project, version -> tmdb-movies/-tv/-people/-credits
 
-Each target selects a stage by name (``python -m examples.tmdb_catalog <stage>``) and runs it
+Each target selects a stage by name (``python -m examples.the_movie_database <stage>``) and runs it
 through the shared ``examples._runner``. The demo constants live here, in the ops caller. The
 ``metrics_port``s match the tmdb targets in ``prometheus/prometheus.yml``.
 

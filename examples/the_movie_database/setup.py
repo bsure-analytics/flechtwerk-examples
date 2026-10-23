@@ -1,4 +1,4 @@
-"""One-shot setup for the TMDB Catalog pipeline — idempotent, safe to re-run.
+"""One-shot setup for the TMDB - The Movie Database pipeline — idempotent, safe to re-run.
 
     uv run poe setup-tmdb
 
@@ -74,7 +74,7 @@ async def apply_clickhouse_schema(base_url: str = CLICKHOUSE_URL, *, database: s
 async def main() -> None:
     await create_topics()
     await apply_clickhouse_schema()
-    print("TMDB Catalog setup complete.")
+    print("TMDB - The Movie Database setup complete.")
     print()
     print("1. Make a keyring (once; it encrypts the TMDB token on the config topic):")
     print("     uv run flechtctl keyring new --kid dev-$(date -u +%Y-%m) "

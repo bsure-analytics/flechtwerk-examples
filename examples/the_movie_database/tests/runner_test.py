@@ -43,7 +43,7 @@ from flechtwerk.testing import (
 )
 from flechtwerk.transformer import Task
 
-from examples.tmdb_catalog.attributes import (
+from examples.the_movie_database.attributes import (
     ACCESS_TOKEN,
     CHANGED_ON,
     CHANGES_RAW_TOPIC,
@@ -62,9 +62,9 @@ from examples.tmdb_catalog.attributes import (
     TV_TOPIC,
     VERSION,
 )
-from examples.tmdb_catalog.catalog import TmdbCatalog
-from examples.tmdb_catalog.changes import TmdbChanges
-from examples.tmdb_catalog.split import TmdbSplit
+from examples.the_movie_database.catalog import TmdbCatalog
+from examples.the_movie_database.changes import TmdbChanges
+from examples.the_movie_database.split import TmdbSplit
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MOVIE = json.loads((FIXTURES / "movie_550.json").read_text())

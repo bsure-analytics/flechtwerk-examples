@@ -11,7 +11,7 @@ through the shared ``examples._runner``. The demo constants live here, in the op
 
 **The credential rides encrypted on a config topic.** The ingest stage needs NASA's FIRMS
 MAP_KEY. ``request-wildfire key`` writes it to ``wildfire-credentials`` as an ``ENCRYPTED(STR)``
-attribute, and the stage decrypts it on read with the process keyring — the ``tmdb_catalog``
+attribute, and the stage decrypts it on read with the process keyring — the ``the_movie_database``
 pattern. What this ops caller injects is therefore the **keyring** (``_runner.run(keyring=...)``),
 loaded by ``examples._setup.load_keyring``; it reads only the keyring *path* from the environment
 (``FLECHTWERK_KEYRING``). Key material never enters a stage module or a topic in the clear, and the

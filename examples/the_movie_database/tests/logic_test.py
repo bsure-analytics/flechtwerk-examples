@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from examples.tmdb_catalog.projection import (
+from examples.the_movie_database.projection import (
     PROJECTORS,
     content_hash,
     day_windows,

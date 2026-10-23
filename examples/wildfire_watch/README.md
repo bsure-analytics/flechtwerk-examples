@@ -153,8 +153,8 @@ reads it with `self.configs.get("firms")` and decrypts on read;
 `flechtwerk_secret_decrypts_total` on its metrics endpoint (`9120`) proves it. Re-running `key` is
 how a new key reaches the stage. Two consequences of the config store being one namespace that the
 extractor polls entirely: the ingest's `poll` and `enrich_config` pass over the `firms` entry, and
-`firms` is a reserved region slug. (The keyring is the same one [TMDB
-Catalog](../tmdb_catalog) uses — but there the token rides on every feed record; here there
+`firms` is a reserved region slug. (The keyring is the same one [TMDB - The Movie
+Database](../the_movie_database) uses — but there the token rides on every feed record; here there
 can be ~350 world-watch regions, so the key lives once, on a topic of its own, and requesting a
 region never touches it.)
 

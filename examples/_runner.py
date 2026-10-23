@@ -11,7 +11,7 @@ Configuration is injected here by the ops caller, never read from the environmen
 themselves and pass what they find straight in, so the *stages* stay env-free:
 ``chaos_harness``, whose harness spawns short-lived copies with an env-driven
 ``application_id`` to prove transactional fencing, and the two examples with an API
-credential (``wildfire_watch``, ``tmdb_catalog``), whose ``__main__`` reads only the
+credential (``wildfire_watch``, ``the_movie_database``), whose ``__main__`` reads only the
 keyring *path* (``examples._setup.load_keyring``) and passes the keyring as ``keyring=``
 — the credential itself rides encrypted on a config topic.
 """

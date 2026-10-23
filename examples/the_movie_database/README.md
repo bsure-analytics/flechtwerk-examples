@@ -1,4 +1,4 @@
-# TMDB Catalog — reference data as a change stream
+# TMDB - The Movie Database — reference data as a change stream
 
 [The Movie Database](https://www.themoviedb.org/) is the community-built catalog behind half the
 film apps on your phone. This example keeps a **local copy of it current**: movies, TV series and
@@ -159,10 +159,10 @@ uv run poe tmdb                                         # setup, then all three 
 or stage by stage: `uv run poe run-tmdb-changes` (hourly backup extractor, metrics on `9124`),
 `uv run poe run-tmdb-split` (page splitter, `9125`) and `uv run poe run-tmdb-catalog` (catalog
 transformer, `9126`), each a separate process. The `__main__` targets are
-`python -m examples.tmdb_catalog changes|split|catalog`. `request-tmdb since
+`python -m examples.the_movie_database changes|split|catalog`. `request-tmdb since
 <date> [movie|tv|person]` sets an epoch (it edits around the stored ciphertext, so it needs no
 keyring), `request-tmdb retire [feed]` tombstones a feed, and `request-tmdb` alone lists what is
-requested. Then open Grafana (`http://localhost:3000`, dashboard *Flechtwerk — TMDB Catalog*) or
+requested. Then open Grafana (`http://localhost:3000`, dashboard *Flechtwerk — TMDB - The Movie Database*) or
 query ClickHouse:
 
 ```sql

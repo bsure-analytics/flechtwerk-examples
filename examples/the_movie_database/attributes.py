@@ -1,4 +1,4 @@
-"""Typed attributes, topic names, and state keys for the TMDB Catalog example.
+"""Typed attributes, topic names, and state keys for the TMDB - The Movie Database example.
 
 Two schemas meet here, owned by different parties. The **catalog records** (a movie, a TV
 series, a person) are TMDB's own JSON: the projection spreads everything TMDB sends and adds

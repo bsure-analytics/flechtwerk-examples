@@ -147,10 +147,10 @@ def _feeds(argv: list[str]) -> tuple[str, ...]:
 
 
 def usage() -> None:
-    sys.exit("usage: python -m examples.tmdb_catalog.request token < FILE\n"
-             "   or: python -m examples.tmdb_catalog.request since YYYY-MM-DD [movie|tv|person]\n"
-             "   or: python -m examples.tmdb_catalog.request retire [movie|tv|person]\n"
-             "   or: python -m examples.tmdb_catalog.request            (list)")
+    sys.exit("usage: python -m examples.the_movie_database.request token < FILE\n"
+             "   or: python -m examples.the_movie_database.request since YYYY-MM-DD [movie|tv|person]\n"
+             "   or: python -m examples.the_movie_database.request retire [movie|tv|person]\n"
+             "   or: python -m examples.the_movie_database.request            (list)")
 
 
 def main() -> None:

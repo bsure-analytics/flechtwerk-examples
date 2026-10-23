@@ -1,4 +1,4 @@
--- ClickHouse sink for the TMDB Catalog example.
+-- ClickHouse sink for the TMDB - The Movie Database example.
 --
 -- Like ADS-B / SMARD / GTFS / Odds / Wildfire, this takes the Kafka-engine SHORTCUT:
 -- ClickHouse's own Kafka table engine consumes the output topics directly and materialized

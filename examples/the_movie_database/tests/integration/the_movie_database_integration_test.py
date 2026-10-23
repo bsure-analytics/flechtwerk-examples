@@ -26,7 +26,7 @@ from flechtwerk import Config, Event
 from flechtwerk.module import Flechtwerk
 from flechtwerk.testing import fixture_keyring, installed_keyring
 
-from examples.tmdb_catalog.attributes import (
+from examples.the_movie_database.attributes import (
     ACCESS_TOKEN,
     CHANGED_ON,
     CHANGES_TOPIC,
@@ -39,8 +39,8 @@ from examples.tmdb_catalog.attributes import (
     TMDB_ID,
     TV_TOPIC,
 )
-from examples.tmdb_catalog.catalog import TmdbCatalog
-from examples.tmdb_catalog.setup import apply_clickhouse_schema
+from examples.the_movie_database.catalog import TmdbCatalog
+from examples.the_movie_database.setup import apply_clickhouse_schema
 
 pytestmark = pytest.mark.integration
 
