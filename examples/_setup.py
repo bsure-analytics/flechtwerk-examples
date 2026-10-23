@@ -40,6 +40,12 @@ def quiet_fresh_topic_produce_race():
         sender_log.setLevel(previous)
 
 
+def keyring_path(env_var: str = KEYRING_ENV, default: Path = DEFAULT_KEYRING) -> Path:
+    """Where the keyring file is expected: ``$FLECHTWERK_KEYRING`` or ``default``, ``~`` expanded.
+    For an ops caller that can do without one (a request tool's optional preview)."""
+    return Path(os.environ.get(env_var) or default).expanduser()
+
+
 def load_keyring(env_var: str = KEYRING_ENV, default: Path = DEFAULT_KEYRING) -> Keyring:
     """Load the keyring file that encrypts and decrypts ``ENCRYPTED`` config attributes.
 
@@ -51,7 +57,7 @@ def load_keyring(env_var: str = KEYRING_ENV, default: Path = DEFAULT_KEYRING) ->
     (``__main__.py``, ``request.py``) loads the keyring and injects it
     (``examples._runner.run(keyring=...)``).
     """
-    path = Path(os.environ.get(env_var) or default).expanduser()
+    path = keyring_path(env_var, default)
     if not path.is_file():
         sys.exit(
             f"no keyring at {path}\n"

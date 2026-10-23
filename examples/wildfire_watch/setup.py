@@ -2,19 +2,21 @@
 
     uv run poe setup-wildfire
 
-Creates the compacted config topic and the three data topics, and applies the ClickHouse schema.
+Creates the compacted config topic, the one-record credentials topic and the three data topics,
+and applies the ClickHouse schema.
 **Nothing is seeded** — a watch region is a human's choice of where to look (the ADS-B /
 Odds pattern), and a default would just burn NASA's quota on a place you don't care about.
 Request regions after setup with ``uv run poe request-wildfire`` (or any producer to
 ``wildfire-regions``, Kafbat UI included).
 
-All four topics share a partition count so a region's config, detections, sweeps, status
+The region topic and the three data topics share a partition count so a region's config, detections, sweeps, status
 snapshots, and events co-partition by the region slug — one tracker task owns a region's whole
 fire lifecycle, and same-key serial processing keeps each poll's detections-before-sweep order
 intact end to end. The config topic is log-compacted so the latest record per region (or a
 tombstone) wins.
 
-Running the ingest stage needs a free NASA ``FIRMS_MAP_KEY``; this setup step does not.
+Running the ingest stage needs a free NASA MAP_KEY, stored encrypted on ``wildfire-credentials``
+with ``request-wildfire key`` (which needs a keyring); this setup step needs neither.
 """
 import asyncio
 from pathlib import Path
@@ -22,7 +24,7 @@ from pathlib import Path
 import httpx
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
-from .attributes import DETECTIONS_TOPIC, EVENTS_TOPIC, REGIONS_TOPIC, STATUS_TOPIC
+from .attributes import CREDENTIALS_TOPIC, DETECTIONS_TOPIC, EVENTS_TOPIC, REGIONS_TOPIC, STATUS_TOPIC
 
 BOOTSTRAP_SERVERS = "localhost:9092"
 CLICKHOUSE_URL = "http://localhost:8123"
@@ -43,6 +45,7 @@ async def create_topics() -> None:
         existing = set(await admin.list_topics())
         specs = [
             (REGIONS_TOPIC, PARTITIONS, {"cleanup.policy": "compact"}),  # watch regions (requested, not seeded)
+            (CREDENTIALS_TOPIC, 1, {"cleanup.policy": "compact"}),       # the one encrypted MAP_KEY record
             (DETECTIONS_TOPIC, PARTITIONS, {}),                          # hotspot pixels + sweep markers
             (STATUS_TOPIC, PARTITIONS, {}),                              # per-fire status heartbeats
             (EVENTS_TOPIC, PARTITIONS, {}),                              # ignition / merged / extinguished
@@ -76,9 +79,12 @@ async def main() -> None:
     await apply_clickhouse_schema()
     print("Wildfire Watch setup complete.")
     print()
-    print("1. Get a free, instant NASA MAP_KEY (needed by the ingest stage only):")
+    print("1. Get a free, instant NASA MAP_KEY (needed by the ingest stage only), save it in a file:")
     print("     https://firms.modaps.eosdis.nasa.gov/api/map_key/")
-    print("     export FIRMS_MAP_KEY=...")
+    print("   make a keyring once (it encrypts the key on the config topic), then store the key:")
+    print("     uv run flechtctl keyring new --kid dev-$(date -u +%Y-%m) "
+          "~/.config/flechtwerk-examples/keyring.json")
+    print("     uv run poe request-wildfire key < ~/.config/flechtwerk-examples/firms-map-key")
     print("2. Request a region to watch, e.g.:")
     print('     uv run poe request-wildfire "Alentejo, Portugal"')
     print('     uv run poe request-wildfire "Attica, Greece"')

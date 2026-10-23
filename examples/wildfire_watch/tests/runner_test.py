@@ -15,6 +15,7 @@ network — with FIRMS and Nominatim served from the committed fixtures via an
 """
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
@@ -28,12 +29,15 @@ from flechtwerk.extractor import Extractor, ExtractorRunner, TokenTask
 from flechtwerk.module import _FlechtwerkModule
 from flechtwerk.observer import Observer
 from flechtwerk.state import ChangelogStateStore
+from flechtwerk.testing import installed_keyring
 from flechtwerk.testing import FakeKafkaConsumer, FakeKafkaProducer, InMemoryStateStore, make_record
 from flechtwerk.transformer import Task
 
 from examples.wildfire_watch.attributes import (
     ACQUIRED_AT,
     CONFIDENCE,
+    CREDENTIAL_KEY,
+    CREDENTIALS_TOPIC,
     DAYNIGHT,
     DETECTION_ID,
     DETECTIONS_TOPIC,
@@ -46,6 +50,7 @@ from examples.wildfire_watch.attributes import (
     KIND,
     LAT,
     LON,
+    MAP_KEY as MAP_KEY_ATTR,
     NAME,
     NEW_DETECTIONS,
     NORTH,
@@ -92,18 +97,34 @@ N20_ROWS, N20_LATER_ROWS, N21_ROWS = 21, 32, 24
 
 # --- extractor harness (mirrors the odds / SMARD / GTFS runner tests) ---
 
-def _extractor_runner(stage: Extractor, key: str, config: dict) -> tuple[ExtractorRunner, FakeKafkaProducer]:
-    """Wire a single-token ExtractorRunner over the shipped fakes, seeding one config."""
+@pytest.fixture(autouse=True)
+def keyring():
+    with installed_keyring():
+        yield
+
+
+def _credential() -> str:
+    """The MAP_KEY record as it travels on ``wildfire-credentials``: ciphertext."""
+    return json.dumps(Config({MAP_KEY_ATTR: MAP_KEY}).raw)
+
+
+def _extractor_runner(stage: Extractor, key: str, config: dict, *,
+                      with_key: bool = True) -> tuple[ExtractorRunner, FakeKafkaProducer]:
+    """Wire a single-token ExtractorRunner over the shipped fakes, seeding one region config and
+    (unless ``with_key=False``) the encrypted MAP_KEY record beside it."""
     producer = FakeKafkaProducer()
     inner = InMemoryStateStore()
     runner = ExtractorRunner()
     runner.changelog_topic = "wildfire-changelog"
     runner.config_store = ConfigStore()
-    runner.consumer = FakeKafkaConsumer(
-        [make_record(key=key, value=json.dumps(config), topic=stage.config_topics[0])])
+    records = [make_record(key=key, value=json.dumps(config), topic=stage.config_topics[0])]
+    if with_key:
+        records.append(make_record(key=CREDENTIAL_KEY, value=_credential(), topic=CREDENTIALS_TOPIC))
+    runner.consumer = FakeKafkaConsumer(records)
     runner.create_restore_consumer = lambda: FakeKafkaConsumer()
     runner.create_token_producer = lambda token: producer
     runner.extractor = stage
+    stage.configs = runner.config_store  # what ExtractorRunner.run() wires before polling
     runner.inner_store = inner
     runner.observer = Observer()
     runner.poll_interval = timedelta(0)
@@ -141,8 +162,7 @@ def _stage(clock: dict, *, n20: str = N20_CSV, n21: str = N21_CSV,
     paths: list[str] = []
     client = httpx.AsyncClient(transport=httpx.MockTransport(_handler(clock, bodies, paths, status=status)))
     geocoder = NominatimGeocoder(client=client, search_url=NOMINATIM_SEARCH) if geocode else None
-    stage = FirmsIngest(client=client, map_key=MAP_KEY, base_url=FIRMS_BASE,
-                        geocoder=geocoder)
+    stage = FirmsIngest(client=client, base_url=FIRMS_BASE, geocoder=geocoder)
     return stage, bodies, paths
 
 
@@ -154,10 +174,41 @@ def _of_kind(producer: FakeKafkaProducer, topic: str, kind: str) -> list[dict]:
     return [record for record in _sent(producer, topic) if record["kind"] == kind]
 
 
-async def _poll(stage: Extractor, config: dict) -> tuple[ExtractorRunner, FakeKafkaProducer]:
-    runner, producer = _extractor_runner(stage, REGION_SLUG, config)
+async def _poll(stage: Extractor, config: dict, *,
+                with_key: bool = True) -> tuple[ExtractorRunner, FakeKafkaProducer]:
+    runner, producer = _extractor_runner(stage, REGION_SLUG, config, with_key=with_key)
     await runner.load_initial_configs()
     return runner, producer
+
+
+# --- the encrypted MAP_KEY ---
+
+def test_the_credential_record_carries_ciphertext_not_the_key() -> None:
+    raw = json.loads(_credential())
+    assert raw["map_key"].startswith("flenc:jwe:") and MAP_KEY not in _credential()
+    assert Config.wrap(raw)[MAP_KEY_ATTR] == MAP_KEY
+
+
+async def test_ingest_without_a_stored_key_skips_every_poll(caplog: pytest.LogCaptureFixture) -> None:
+    stage, _, paths = _stage({"date": _T})
+    runner, producer = await _poll(stage, CONFIG_WITH_BBOX, with_key=False)
+    with caplog.at_level(logging.WARNING):
+        async with stage:
+            await runner.poll_one(runner.entries[REGION_SLUG])
+            await runner.poll_one(runner.entries[REGION_SLUG])
+    assert paths == [] and producer.sent == []               # idles — no doomed requests
+    assert caplog.text.count("no FIRMS MAP_KEY") == 1        # warned once, not per poll
+    assert "request-wildfire key" in caplog.text
+
+
+async def test_ingest_passes_over_the_credential_entry() -> None:
+    # One config namespace: the MAP_KEY record is polled like a region and must yield nothing.
+    stage, _, paths = _stage({"date": _T}, geocode=True)
+    runner, producer = await _poll(stage, CONFIG_WITH_BBOX)
+    assert set(runner.entries) == {REGION_SLUG, CREDENTIAL_KEY}
+    async with stage:
+        await runner.poll_one(runner.entries[CREDENTIAL_KEY])
+    assert paths == [] and producer.sent == []               # no geocoding, no FIRMS request
 
 
 # --- ingest ---
@@ -335,7 +386,7 @@ async def test_enrich_config_raises_on_a_name_that_matches_nothing() -> None:
         return _handler(clock, bodies, paths)(request)       # pragma: no cover — unreached
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
-    stage = FirmsIngest(client=client, map_key=MAP_KEY, base_url=FIRMS_BASE,
+    stage = FirmsIngest(client=client, base_url=FIRMS_BASE,
                         geocoder=NominatimGeocoder(client=client, search_url=NOMINATIM_SEARCH))
     with pytest.raises(LookupError, match="no match for region"):
         await stage.enrich_config(Config.wrap(CONFIG_NAME_ONLY))

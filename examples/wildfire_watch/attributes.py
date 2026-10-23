@@ -21,6 +21,7 @@ Codecs are exact-type: ``FLOAT`` rejects ``int`` (the CSV parser wraps every num
 from typing import Final
 
 from flechtwerk.attribute import ANY, Attribute, DATETIME, DICT, FLOAT, INT, LIST, STR
+from flechtwerk.secrets import ENCRYPTED
 
 # --- Topics (the wire contract, shared by both stages) ---
 
@@ -38,6 +39,22 @@ drives the map and the FRP timeline; ``extinguished`` is the final snapshot a fi
 EVENTS_TOPIC: Final = "wildfire-events"
 """Sparse lifecycle stream: ``ignition``, ``merged``, ``extinguished``. A fire's life story,
 kept without a TTL — rare and precious, the same rationale as ``odds-signals``."""
+
+CREDENTIALS_TOPIC: Final = "wildfire-credentials"
+"""Compacted config topic holding ONE record, keyed :data:`CREDENTIAL_KEY`: the FIRMS MAP_KEY,
+encrypted. Written only by ``request-wildfire key``. A topic of its own so that requesting a region
+never involves the secret — but the config store merges every config topic into one namespace and
+the extractor polls every entry, so ``FirmsIngest`` skips this entry explicitly (it is not a
+region), and ``request-wildfire`` refuses a region whose slug would collide with the key."""
+
+# --- Credential record (wildfire-credentials; wire key = CREDENTIAL_KEY) ---
+
+CREDENTIAL_KEY: Final = "firms"
+"""The wire key of the one credential record — and therefore a reserved region slug."""
+MAP_KEY: Final = Attribute("map_key", ENCRYPTED(STR))
+"""NASA's FIRMS MAP_KEY. ``ENCRYPTED`` makes a typed write produce ``flenc:jwe:…`` ciphertext and
+a typed read decrypt it with the process keyring — so the key is never plaintext on a topic, and
+only a process started with the keyring can use it."""
 
 # --- Config record (wildfire-regions; wire key = region slug) ---
 

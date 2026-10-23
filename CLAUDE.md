@@ -151,21 +151,23 @@ stream, the credential encrypted on the config topic).
   by the caller (`Flechtwerk.of(...)`, or a config topic record). `setup.py` /
   `__main__.py` are the ops callers and may hold demo constants. Three `__main__.py`s
   deliberately read the environment *as the ops caller* and inject what they find:
-  `chaos_harness` (an env-driven `application_id`, to prove transactional fencing),
-  `wildfire_watch` (the `FIRMS_MAP_KEY` credential NASA requires, injected as
-  `FirmsIngest(map_key=…)`) and `tmdb_catalog` (the keyring *path*, `FLECHTWERK_KEYRING`,
-  read by `examples/_setup.load_keyring` and injected as `_runner.run(keyring=…)`). The
-  rule holds where it matters — no stage touches
-  `os.environ`. `wildfire_watch/ingest.py` therefore has **no module-level `stage`**
-  singleton, since a credential can't be baked in at import time.
+  `chaos_harness` (an env-driven `application_id`, to prove transactional fencing), and
+  `wildfire_watch` and `tmdb_catalog` (the keyring *path*, `FLECHTWERK_KEYRING`, read by
+  `examples/_setup.load_keyring` and injected as `_runner.run(keyring=…)`). The rule holds
+  where it matters — no stage touches `os.environ`, and since no credential is a constructor
+  argument any more, every stage module has its module-level `stage` singleton.
 - **A credential on a config topic goes through `ENCRYPTED`** (`flechtwerk[secrets]`,
-  0.17.0) — `tmdb_catalog` is the user: the token is an `ENCRYPTED(STR)` attribute of each
-  feed record (ciphertext `flenc:jwe:…` on the wire), written by `request-tmdb token` from
-  stdin and decrypted on read by stages started with the keyring, which the ops caller injects
-  through `_runner.run(keyring=…)`. `wildfire_watch` keeps the env-var route as the
-  pre-keyring precedent. Key material never enters a stage module or a topic, and the token
-  rides on every feed record because the config store is one namespace the extractor polls
-  entirely. The secret counters (`flechtwerk_secret_decrypts_total`,
+  0.17.0) — written from stdin by the example's `request-*` tool, ciphertext `flenc:jwe:…` on
+  the wire, decrypted on read by stages started with the keyring, which the ops caller injects
+  through `_runner.run(keyring=…)`. Key material never enters a stage module or a topic in the
+  clear. The config store is one namespace that the extractor polls entirely, which leaves two
+  shapes, and the repo shows both: **on every target record** (`tmdb_catalog` — the token is an
+  attribute of each of three feed records, so there is nothing to skip) or **one record on a
+  topic of its own** (`wildfire_watch` — the MAP_KEY on `wildfire-credentials`, read with
+  `self.configs.get("firms")`; the extractor's `poll`/`enrich_config` skip that entry, `firms`
+  is a reserved region slug, and requesting one of ~350 world-watch regions never touches the
+  secret). Pick the second when targets are many or written often. A secret that is part of a
+  URL (FIRMS' is) also means quieting httpx's INFO request log in the ops caller. The secret counters (`flechtwerk_secret_decrypts_total`,
   `flechtwerk_keyring_keys_loaded`) on the metrics endpoint are the proof it is in use. Host
   metrics ports `9124`/`9125`/`9126` are the TMDB stages' (changes, split, catalog).
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's

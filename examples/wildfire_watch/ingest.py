@@ -23,10 +23,15 @@ status heartbeats therefore have to ride on input — so every poll emits a swee
 poll emits a sweep saying ``new_detections = 0``. Skipping it on quiet polls would freeze the
 lifecycle at exactly the moment fires are dying, which is when it matters most.
 
-**The map key is a constructor argument, never an environment read.** ``__main__.py`` (the ops
-caller) reads ``FIRMS_MAP_KEY`` and injects it, so this module keeps the framework's no-env-magic
-rule intact. That is also why there is no module-level ``stage`` singleton here as the other
-extractors have — a credential cannot be baked in at import time.
+**The map key rides encrypted on its own config topic.** ``request-wildfire key`` writes NASA's
+MAP_KEY to ``wildfire-credentials`` as an ``ENCRYPTED(STR)`` attribute; each poll reads it with
+``self.configs.get(CREDENTIAL_KEY)``, decrypted on read by the keyring the ops caller injects
+(``_runner.run(keyring=…)``). No environment read, no constructor secret — so, like the other
+extractors, this module has a ``stage`` singleton. Because the config store is one namespace that
+the extractor polls entirely, the credential entry reaches :meth:`FirmsIngest.poll` and
+:meth:`FirmsIngest.enrich_config` too, and both pass it over (it has no ``region``). Until a key is
+stored, every region poll is skipped with one warning — the stage idles rather than crash-looping
+on a missing secret.
 
 **Let it crash — but don't burn the quota on the way down.** HTTP errors, an invalid key, an
 over-quota response, or a body that isn't CSV all raise: there is one upstream and no remedy a
@@ -56,6 +61,8 @@ from .attributes import (
     BRIGHT_TI4,
     BRIGHT_TI5,
     CONFIDENCE,
+    CREDENTIAL_KEY,
+    CREDENTIALS_TOPIC,
     DAYNIGHT,
     DETECTION_ID,
     DETECTIONS_TOPIC,
@@ -66,6 +73,7 @@ from .attributes import (
     KIND,
     LAT,
     LON,
+    MAP_KEY,
     NAME,
     NEW_DETECTIONS,
     NORTH,
@@ -282,18 +290,18 @@ class FirmsIngest(Extractor):
 
     Subclasses ``Extractor`` to own the ``httpx`` client (built in ``__aenter__``, closed in
     ``__aexit__``) and the geocoder; tests inject a ``MockTransport`` client and a fake geocoder,
-    so no network is touched off the live path. ``map_key`` is required and supplied by the ops
-    caller — see the module docstring.
+    so no network is touched off the live path. The MAP_KEY comes from the
+    ``wildfire-credentials`` config topic — see the module docstring.
     """
 
-    config_topics = [REGIONS_TOPIC]
+    config_topics = [REGIONS_TOPIC, CREDENTIALS_TOPIC]
 
-    def __init__(self, client: httpx.AsyncClient | None = None, *, map_key: str,
+    def __init__(self, client: httpx.AsyncClient | None = None, *,
                  base_url: str = FIRMS_BASE_URL, detections_topic: str = DETECTIONS_TOPIC,
                  geocoder: Geocoder | None = None) -> None:
         super().__init__()
         self._client = client
-        self._map_key = map_key
+        self._warned_no_key = False
         self._base_url = base_url.rstrip("/")
         self._topic = detections_topic
         self._geocoder = geocoder
@@ -332,6 +340,8 @@ class FirmsIngest(Extractor):
         poll a meaningless box.
         """
         edges = (WEST, SOUTH, EAST, NORTH)
+        if config.get(REGION) is None:  # the credential record shares the namespace: not a region
+            return config
         if all(config.get(edge) is not None for edge in edges):
             return config
         assert self._geocoder is not None, "geocoder is opened in __aenter__ or injected"
@@ -342,12 +352,26 @@ class FirmsIngest(Extractor):
                        WEST: west - PAD_DEG, SOUTH: south - PAD_DEG,
                        EAST: east + PAD_DEG, NORTH: north + PAD_DEG})
 
-    def _area_url(self, config: Config, source: str) -> str:
+    def _area_url(self, map_key: str, config: Config, source: str) -> str:
         """The area-API URL for one source and region — ``west,south,east,north`` order."""
         bbox = f"{config[WEST]},{config[SOUTH]},{config[EAST]},{config[NORTH]}"
-        return f"{self._base_url}/api/area/csv/{self._map_key}/{source}/{bbox}/{DAY_RANGE}"
+        return f"{self._base_url}/api/area/csv/{map_key}/{source}/{bbox}/{DAY_RANGE}"
 
-    async def _fetch_area(self, config: Config, source: str) -> httpx.Response:
+    def _map_key(self) -> str | None:
+        """The decrypted MAP_KEY from ``wildfire-credentials``, or ``None`` (warned once) if
+        nobody has stored one yet."""
+        credential = self.configs.get(CREDENTIAL_KEY)
+        if credential is None:
+            if not self._warned_no_key:
+                log.warning("no FIRMS MAP_KEY on %s — region polls are skipped until one is "
+                            "stored: uv run poe request-wildfire key < <key file>",
+                            CREDENTIALS_TOPIC)
+                self._warned_no_key = True
+            return None
+        self._warned_no_key = False
+        return credential[MAP_KEY]
+
+    async def _fetch_area(self, map_key: str, config: Config, source: str) -> httpx.Response:
         """One area GET, with a credential rejection made legible and made cheap.
 
         **Legible.** FIRMS answers *both* a wrong MAP_KEY and a spent quota with 400
@@ -367,7 +391,7 @@ class FirmsIngest(Extractor):
         still fails and the process still dies, it just stops paying for a doomed round.
         """
         assert self._client is not None, "client is opened in __aenter__ or injected"
-        response = await self._client.get(self._area_url(config, source))
+        response = await self._client.get(self._area_url(map_key, config, source))
         if response.status_code == 400:
             self._rejected = response.text.strip()
             raise RuntimeError(self._rejection_message(source))
@@ -386,7 +410,7 @@ class FirmsIngest(Extractor):
             f"key has spent its quota ({QUOTA_TRANSACTIONS} transactions per "
             f"{QUOTA_INTERVAL_MINUTES} minutes — each watch region costs {len(SOURCES)} requests "
             f"per poll, and an area request is billed as several transactions). Check which: "
-            f"curl {self._base_url}{MAPKEY_STATUS_PATH}$FIRMS_MAP_KEY")
+            f"curl {self._base_url}{MAPKEY_STATUS_PATH}<your key>")
 
     async def poll(self, config: Config, state: State) -> AsyncIterator[Message | State]:
         """Emit this region's new detections, then its sweep marker, then the seen-set.
@@ -402,8 +426,12 @@ class FirmsIngest(Extractor):
         """
         # A key FIRMS already rejected this cycle: fail without spending a request. See
         # _fetch_area — at world scale the concurrent cycle would otherwise pay ~700 times over.
+        if config.get(REGION) is None:  # the credential record, polled like every config entry
+            return
         if self._rejected is not None:
             raise RuntimeError(self._rejection_message())
+        if (map_key := self._map_key()) is None:
+            return
         region = config[REGION]
 
         seen = {day: list(ids) for day, ids in (state.get(SEEN) or {}).items()}
@@ -412,7 +440,7 @@ class FirmsIngest(Extractor):
         rows: list[dict[str, str]] = []
         fetched_ats: list[datetime] = []
         for source in SOURCES:
-            response = await self._fetch_area(config, source)
+            response = await self._fetch_area(map_key, config, source)
             rows += parse_area_csv(response.text)
             fetched_ats.append(self._fetched_at(response))
         # The later of the two responses: the sweep's event time must not claim to know more
@@ -451,3 +479,6 @@ class FirmsIngest(Extractor):
         if raw:
             return parsedate_to_datetime(raw).astimezone(timezone.utc)
         return datetime.now(timezone.utc)  # pragma: no cover — live feed always sends Date
+
+
+stage = FirmsIngest()

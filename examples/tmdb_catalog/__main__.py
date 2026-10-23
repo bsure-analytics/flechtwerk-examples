@@ -10,15 +10,14 @@ Each target selects a stage by name (``python -m examples.tmdb_catalog <stage>``
 through the shared ``examples._runner``. The demo constants live here, in the ops caller. The
 ``metrics_port``s match the tmdb targets in ``prometheus/prometheus.yml``.
 
-**The credential rides encrypted on the config topic.** Unlike ``wildfire_watch`` (whose ops
-caller reads an API key from the environment and injects it as a constructor argument), the TMDB
-token is an ``ENCRYPTED(STR)`` attribute of each ``tmdb-feeds`` record: ``request-tmdb token``
+**The credential rides encrypted on the config topic.** The TMDB token is an ``ENCRYPTED(STR)`` attribute of each ``tmdb-feeds`` record: ``request-tmdb token``
 writes it as ciphertext, and a stage decrypts it on read with the process keyring. What the ops
 caller injects is therefore the **keyring** (``_runner.run(keyring=...)``), loaded from a file by
 ``examples._setup.load_keyring``. This caller reads only the keyring *path* from the environment
 (``FLECHTWERK_KEYRING``, defaulting to ``~/.config/flechtwerk-examples/keyring.json``) — key
-material never enters a stage module or a topic, and the stages touch no ``os.environ``. It is the
-keyring precedent ``wildfire_watch/__main__.py`` left for "its own example".
+material never enters a stage module or a topic, and the stages touch no ``os.environ``.
+``wildfire_watch`` does the same for NASA's key, but on one credential record of its own topic
+rather than on every target record.
 
 The keyring is loaded lazily, per stage, inside the lambdas — and not at all for ``split``, which
 reads no config topic and so never sees the token.

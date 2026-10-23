@@ -5,6 +5,7 @@
     uv run poe request-wildfire world                                # the whole planet, tiled
     uv run poe request-wildfire retire alentejo-portugal
     uv run poe request-wildfire retire world
+    uv run poe request-wildfire key < ~/.config/flechtwerk-examples/firms-map-key
 
 The ops step that replaces a hard-coded seed (the ADS-B ``request-region`` pattern). Give it a
 place name and it geocodes that to a bounding box; pass four numbers to pin the box yourself.
@@ -46,9 +47,17 @@ boxes occupies two independent state buckets and is tracked twice (the dashboard
 ``fire_id``, but per-region counts and events do not). Cheap to check, easy to fix at request
 time, annoying to discover later.
 
-If ``FIRMS_MAP_KEY`` is set it also **previews the live detection count** for the box, which is
-the quickest way to tell a sensible watch region from a typo. Without a key that step is skipped
-with a hint; requesting a region needs no credentials, only running the ingest stage does.
+If a key is stored (``request-wildfire key``) and the keyring is at hand, it also **previews the
+live detection count** for the box, which is the quickest way to tell a sensible watch region from
+a typo. Without either that step is skipped with a hint; requesting a region needs no credentials,
+only running the ingest stage does.
+
+**``key`` stores the MAP_KEY, encrypted.** ``request-wildfire key < <key file>`` reads NASA's key
+from **stdin** (never argv, so it stays out of shell history and ``ps``), loads the keyring
+(``examples._setup.load_keyring``) and writes ONE record to ``wildfire-credentials``, keyed
+``firms``, whose ``map_key`` is an ``ENCRYPTED(STR)`` attribute — ``flenc:jwe:…`` on the wire. It
+prints the key's ``kid``, never the key. Re-running it is how a new key (or a rotated keyring)
+reaches the stage. ``firms`` is therefore a reserved region slug.
 
 The record is keyed by the region **slug** on the compacted config topic, so re-requesting a
 name updates it and ``retire <slug>`` writes a tombstone that removes it. Any producer works too
@@ -56,7 +65,6 @@ name updates it and ``retire <slug>`` writes a tombstone that removes it. Any pr
 """
 import asyncio
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -65,17 +73,27 @@ import httpx
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from flechtwerk import Config, Event
+from flechtwerk.secrets import install_keyring, kid_of
 
-from examples._setup import quiet_fresh_topic_produce_race
+from examples._setup import keyring_path, load_keyring, quiet_fresh_topic_produce_race
 
-from .attributes import EAST, NAME, NORTH, REGION, REGIONS_TOPIC, SOUTH, WEST
+from .attributes import (
+    CREDENTIAL_KEY,
+    CREDENTIALS_TOPIC,
+    EAST,
+    MAP_KEY,
+    NAME,
+    NORTH,
+    REGION,
+    REGIONS_TOPIC,
+    SOUTH,
+    WEST,
+)
 from .geocoding import NominatimGeocoder
 from .ingest import DAY_RANGE, FIRMS_BASE_URL, PAD_DEG, SOURCES, parse_area_csv
 from .tiles import fetch_world_points, quadtree
 
 BOOTSTRAP_SERVERS = "localhost:9092"
-
-MAP_KEY_ENV = "FIRMS_MAP_KEY"
 
 MAX_BBOX_DEG = 10.0
 """Widest box side (degrees) that passes without a warning — ~1100 km, a large but plausible
@@ -132,17 +150,18 @@ def box_of(config: Config) -> Box | None:
     return edges if None not in edges else None  # type: ignore[return-value]
 
 
-async def watched_regions(bootstrap_servers: str = BOOTSTRAP_SERVERS) -> dict[str, Config]:
-    """Every region currently on the compacted config topic, as ``slug -> Config``.
+async def latest_records(topic: str, bootstrap_servers: str = BOOTSTRAP_SERVERS) -> dict[str, dict]:
+    """Every live record on a compacted config topic, as ``key -> raw value``.
 
     Reads the topic from the beginning with **no group id** (this is a read-only peek — it must
     never commit offsets or disturb the extractor's own consumption) and keeps the last value per
     key, so compaction semantics are reproduced: a later record wins and a tombstone removes the
-    region. An absent topic (setup not run yet) yields ``{}``."""
+    key. Values stay raw (a credential stays ciphertext). An absent topic (setup not run yet)
+    yields ``{}``."""
     # Subscribing via the constructor (rather than assign()) lets aiokafka own the assignment,
     # which is the form the integration tests use; a group-less consumer built with assign()
     # raises CancelledError out of stop() from its coordinator's internal reset task.
-    consumer = AIOKafkaConsumer(REGIONS_TOPIC, bootstrap_servers=bootstrap_servers,
+    consumer = AIOKafkaConsumer(topic, bootstrap_servers=bootstrap_servers,
                                 group_id=None, enable_auto_commit=False,
                                 auto_offset_reset="earliest")
     await consumer.start()
@@ -153,8 +172,6 @@ async def watched_regions(bootstrap_servers: str = BOOTSTRAP_SERVERS) -> dict[st
         starts, ends = (await consumer.beginning_offsets(assignment),
                         await consumer.end_offsets(assignment))
         pending = sum(ends[tp] - starts[tp] for tp in assignment)
-        if pending <= 0:
-            return {}  # topic exists but is empty — nothing requested yet
         latest: dict[str, dict | None] = {}
         while pending > 0:
             batch = await consumer.getmany(timeout_ms=2000)
@@ -164,9 +181,45 @@ async def watched_regions(bootstrap_servers: str = BOOTSTRAP_SERVERS) -> dict[st
                 for record in records:
                     pending -= 1
                     latest[record.key.decode()] = json.loads(record.value) if record.value else None
-        return {slug: Config.wrap(raw) for slug, raw in latest.items() if raw is not None}
+        return {key: raw for key, raw in latest.items() if raw is not None}
     finally:
         await consumer.stop()
+
+
+async def watched_regions(bootstrap_servers: str = BOOTSTRAP_SERVERS) -> dict[str, Config]:
+    """Every region currently on the compacted config topic, as ``slug -> Config``."""
+    return {slug: Config.wrap(raw)
+            for slug, raw in (await latest_records(REGIONS_TOPIC, bootstrap_servers)).items()}
+
+
+async def _stored_map_key() -> str | None:
+    """The stored MAP_KEY, decrypted — or ``None`` (with a hint) when there is no key on
+    ``wildfire-credentials`` or no keyring to read it with. Only the optional preview uses this."""
+    if not keyring_path().is_file():
+        print(f"\n  (No keyring at {keyring_path()} — skipping the live detection preview.)")
+        return None
+    credential = (await latest_records(CREDENTIALS_TOPIC)).get(CREDENTIAL_KEY)
+    if credential is None:
+        print("\n  (No MAP_KEY stored yet — `uv run poe request-wildfire key < <key file>` to also "
+              "preview how many detections this box holds; https://firms.modaps.eosdis.nasa.gov/api/map_key/)")
+        return None
+    install_keyring(load_keyring())
+    return Config.wrap(credential)[MAP_KEY]
+
+
+async def request_key(map_key: str) -> None:
+    """Write the MAP_KEY, encrypted, as the one ``wildfire-credentials`` record."""
+    install_keyring(load_keyring())
+    raw = Config({MAP_KEY: map_key}).raw  # the typed write encrypts
+    producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP_SERVERS)
+    await producer.start()
+    try:
+        with quiet_fresh_topic_produce_race():
+            await producer.send_and_wait(CREDENTIALS_TOPIC, key=CREDENTIAL_KEY.encode(),
+                                         value=json.dumps(raw).encode())
+    finally:
+        await producer.stop()
+    print(f"Stored the FIRMS MAP_KEY on {CREDENTIALS_TOPIC} (kid={kid_of(raw['map_key'])})")
 
 
 def _warn_if_overlapping(slug: str, box: Box, existing: dict[str, Config]) -> None:
@@ -242,10 +295,8 @@ async def _preview(name: str, bbox: Box | None) -> Box:
     print(f"  west={west:.4f} south={south:.4f} east={east:.4f} north={north:.4f}")
     check_box_size(west, south, east, north)
 
-    map_key = os.environ.get(MAP_KEY_ENV, "").strip()
-    if not map_key:
-        print(f"\n  (Set {MAP_KEY_ENV} to also preview how many detections this box holds — "
-              f"https://firms.modaps.eosdis.nasa.gov/api/map_key/)")
+    map_key = await _stored_map_key()
+    if map_key is None:
         return west, south, east, north
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0), follow_redirects=True) as client:
@@ -264,6 +315,9 @@ async def request_watch(name: str, bbox: Box | None) -> None:
     slug = slugify(name)
     if not slug:
         raise SystemExit(f"{name!r} has no alphanumeric characters — it yields an empty slug.")
+    if slug == CREDENTIAL_KEY:
+        # One config namespace across both topics: a region keyed like the credential would shadow it.
+        raise SystemExit(f"{slug!r} is reserved for the MAP_KEY record — pick another region name.")
     box = await _preview(name, bbox)
     _warn_if_overlapping(slug, box, await watched_regions())
 
@@ -372,6 +426,14 @@ async def retire_world() -> None:
 
 def main() -> None:
     argv = sys.argv[1:]
+    if argv == ["key"]:
+        map_key = sys.stdin.read().strip()
+        if not map_key:
+            print("no MAP_KEY on stdin — pipe it in: uv run poe request-wildfire key < <key file>",
+                  file=sys.stderr)
+            sys.exit(2)
+        asyncio.run(request_key(map_key))
+        return
     if argv == ["world"]:
         asyncio.run(request_world())
         return
@@ -398,7 +460,8 @@ def main() -> None:
              '[west south east north]\n'
              '   or: python -m examples.wildfire_watch.request world\n'
              '   or: python -m examples.wildfire_watch.request retire <slug>\n'
-             '   or: python -m examples.wildfire_watch.request retire world')
+             '   or: python -m examples.wildfire_watch.request retire world\n'
+             '   or: python -m examples.wildfire_watch.request key < <MAP_KEY file>')
 
 
 if __name__ == "__main__":

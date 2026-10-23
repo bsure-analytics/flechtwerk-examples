@@ -2,7 +2,12 @@
 
 **Wildfire Watch**
 (`wildfire`) is the spatiotemporal-sessionization case and the **first example needing an API key** (TMDB Catalog is the second, and carries its
-credential encrypted on the config topic):
+credential encrypted on the config topic). Its MAP_KEY rides encrypted too, as ONE record keyed
+`firms` on a config topic of its own, `wildfire-credentials` (`ENCRYPTED(STR)`, written from stdin by
+`request-wildfire key`, decrypted on read via the keyring `__main__` injects); because the config store
+is one namespace the extractor polls entirely, `poll` and `enrich_config` skip that entry, `firms` is a
+reserved region slug, a missing key idles the ingest with one warning, and `__main__` quiets httpx's
+INFO log because FIRMS puts the key in every URL:
 `ingest` polls NASA FIRMS' area API for two VIIRS satellites per watch region (a compacted
 `wildfire-regions` config record carrying a place name **and its cached bounding box** — `request.py`
 geocodes at request time via Nominatim's `boundingbox`, the one field no other example reads, and

@@ -9,30 +9,29 @@ Each target selects a stage by name (``python -m examples.wildfire_watch <stage>
 through the shared ``examples._runner``. The demo constants live here, in the ops caller. The
 ``metrics_port``s match the fires targets in ``prometheus/prometheus.yml``.
 
-**The credential exception, stated plainly.** Stages never read the environment — that is the
-framework's rule, and every other example honours it absolutely. Here the ingest stage needs
-NASA's ``FIRMS_MAP_KEY``, and a secret is exactly the kind of value that must not be baked into
-a module or committed to a config topic in the clear. So the *ops caller* reads it from the
-environment and **injects it as a constructor argument**: ``FirmsIngest(map_key=…)``. The stage
-itself still touches no ``os.environ``, so the rule holds where it matters — configuration
-enters through the caller. This mirrors the ``chaos_harness`` precedent (whose ``__main__``
-reads an env-driven ``application_id`` to prove transactional fencing), restated for secrets.
+**The credential rides encrypted on a config topic.** The ingest stage needs NASA's FIRMS
+MAP_KEY. ``request-wildfire key`` writes it to ``wildfire-credentials`` as an ``ENCRYPTED(STR)``
+attribute, and the stage decrypts it on read with the process keyring — the ``tmdb_catalog``
+pattern. What this ops caller injects is therefore the **keyring** (``_runner.run(keyring=...)``),
+loaded by ``examples._setup.load_keyring``; it reads only the keyring *path* from the environment
+(``FLECHTWERK_KEYRING``). Key material never enters a stage module or a topic in the clear, and the
+stages touch no ``os.environ``. The keyring is loaded lazily, per stage, so ``run-wildfire-tracker``
+needs none.
 
-The key is read **lazily, per stage**, so ``run-wildfire-tracker`` works without one — only the
-poller needs NASA credentials. ``flechtwerk`` also ships a keyring/secrets facility that could
-carry the key as an encrypted config attribute; ``examples/tmdb_catalog`` is that example.
+**The key is part of every FIRMS URL** (``/api/area/csv/<MAP_KEY>/…``), so httpx's INFO request
+log would print it on every poll. ``_run_ingest`` raises the ``httpx`` logger to WARNING —
+encrypting a secret on the topic and then logging it in plaintext would defeat the point. An
+HTTP *error* still names the URL in its exception (let it crash), which is worth knowing before
+you paste a traceback.
 """
-import os
-import sys
+import logging
 from datetime import timedelta
 
 from examples._runner import dispatch, run
+from examples._setup import load_keyring
 
-from .ingest import FirmsIngest
+from .ingest import stage as ingest_stage
 from .tracker import stage as tracker_stage
-
-MAP_KEY_ENV = "FIRMS_MAP_KEY"
-"""Environment variable holding the NASA FIRMS MAP_KEY, read by this ops caller only."""
 
 POLL_INTERVAL = timedelta(minutes=15)
 """Two GETs per region per poll (NOAA-20 + NOAA-21).
@@ -50,29 +49,15 @@ for exactly that restart. A handful of named regions is nowhere near the meter (
 transactions per round) and may be polled faster if you want a livelier demo."""
 
 
-def _map_key() -> str:
-    """The FIRMS MAP_KEY from the environment, or a crisp exit explaining how to get one.
-
-    Fails once, loudly, at startup rather than letting every poll 400 — a stage that crashed on
-    each poll would just restart-spam the supervisor with an opaque HTTP error."""
-    key = os.environ.get(MAP_KEY_ENV, "").strip()
-    if not key:
-        sys.exit(
-            f"{MAP_KEY_ENV} is not set — the FIRMS ingest stage needs a (free, instant) NASA "
-            f"MAP_KEY.\n"
-            f"  1. Request one at https://firms.modaps.eosdis.nasa.gov/api/map_key/\n"
-            f"  2. export {MAP_KEY_ENV}=<your key>\n"
-            f"Then re-run. (The tracker stage needs no key: uv run poe run-wildfire-tracker.)")
-    return key
+def _run_ingest() -> None:
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # its request log would print the MAP_KEY
+    run(ingest_stage, application_id="wildfire-ingest", client_id="wildfire-ingest-0",
+        metrics_port=9120, poll_interval=POLL_INTERVAL, keyring=load_keyring())
 
 
 if __name__ == "__main__":
     dispatch({
-        # The lambda defers both the env read and the client construction, so selecting the
-        # tracker never demands a key.
-        "ingest": lambda: run(FirmsIngest(map_key=_map_key()), application_id="wildfire-ingest",
-                              client_id="wildfire-ingest-0", metrics_port=9120,
-                              poll_interval=POLL_INTERVAL),
+        "ingest": _run_ingest,  # the only stage that needs the keyring
         "tracker": lambda: run(tracker_stage, application_id="wildfire-tracker",
                                client_id="wildfire-tracker-0", metrics_port=9121),
     })

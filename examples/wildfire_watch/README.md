@@ -18,8 +18,10 @@ source gives you no ids, no cursor, and no clock?*
 
 ```mermaid
 flowchart LR
-    NOM{{"Nominatim<br/>/search (boundingbox)"}}:::ext --> RQ["request.py<br/>name → slug + validated bbox"]:::process
+    NOM{{"Nominatim<br/>/search (boundingbox)"}}:::ext --> RQ["request.py<br/>name → slug + validated bbox<br/>key → ENCRYPTED(STR)"]:::process
     RQ --> CFG(["wildfire-regions<br/>(compacted config)"]):::topic
+    RQ --> CRED(["wildfire-credentials<br/>firms → map_key = flenc:jwe:…"]):::topic
+    CRED --> IX
     CFG --> IX["FirmsIngest (Extractor)<br/>2 GETs/region: NOAA-20 + NOAA-21<br/>5 min poll, day_range=2<br/>bounded seen-set = the cursor"]:::process
     FIRMS{{"NASA FIRMS<br/>area API, CSV (MAP_KEY)"}}:::ext --> IX
     IX --> D(["wildfire-detections<br/>detection | sweep<br/>(keyed by region)"]):::topic
@@ -70,8 +72,9 @@ Primitives the other examples don't:
    they were rather than silently ageing out — the safer failure, but it does mean a stalled
    poller looks like a still-burning landscape, which is why the sweep's `new_detections = 0` and
    the dashboard's heartbeat panel exist.
-4. **The first bring-your-own-key example** — see below. The credential flows through the **ops
-   caller**, so the stage stays env-free.
+4. **The first bring-your-own-key example** — see below. The MAP_KEY rides **encrypted on a
+   config topic of its own** (`wildfire-credentials`), and the stage reads it from the config
+   store, decrypting with the keyring the ops caller injects — so it stays env-free.
 
 Secondary points worth seeing: **multi-source polling per config record** (two satellites merged
 into one poll transaction, deduped against one seen-set); event-time out-of-orderness that is
@@ -129,21 +132,43 @@ The ingest stage needs a free NASA MAP_KEY, requested with an email address at
 <https://firms.modaps.eosdis.nasa.gov/api/map_key/> and issued instantly:
 
 ```bash
-export FIRMS_MAP_KEY=<your key>
-curl 'https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY='"$FIRMS_MAP_KEY"
+echo '<your key>' > ~/.config/flechtwerk-examples/firms-map-key && chmod 600 ~/.config/flechtwerk-examples/firms-map-key
+curl "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=$(cat ~/.config/flechtwerk-examples/firms-map-key)"
 # { "transaction_limit" : 5000, "current_transactions": 0, "transaction_interval" : "10 minutes" }
 ```
+
+The key then goes onto the config topic **encrypted**. Make a keyring once (it holds the key that
+encrypts the MAP_KEY; `FLECHTWERK_KEYRING` overrides the path), then store the MAP_KEY — from
+stdin, so it never lands in shell history or `ps`:
+
+```bash
+uv run flechtctl keyring new --kid dev-$(date -u +%Y-%m) ~/.config/flechtwerk-examples/keyring.json
+chmod 600 ~/.config/flechtwerk-examples/keyring.json
+uv run poe request-wildfire key < ~/.config/flechtwerk-examples/firms-map-key   # prints the kid, never the key
+```
+
+That writes ONE record, keyed `firms`, to `wildfire-credentials`, whose `map_key` is an
+`ENCRYPTED(STR)` attribute (`flenc:jwe:…` on the wire). The ingest stage, started with the keyring,
+reads it with `self.configs.get("firms")` and decrypts on read;
+`flechtwerk_secret_decrypts_total` on its metrics endpoint (`9120`) proves it. Re-running `key` is
+how a new key reaches the stage. Two consequences of the config store being one namespace that the
+extractor polls entirely: the ingest's `poll` and `enrich_config` pass over the `firms` entry, and
+`firms` is a reserved region slug. (The keyring is the same one [TMDB
+Catalog](../tmdb_catalog) uses — but there the token rides on every feed record; here there
+can be ~350 world-watch regions, so the key lives once, on a topic of its own, and requesting a
+region never touches it.)
 
 Every other example in this repo runs on keyless public data, and that streak is worth breaking
 only knowingly. Here is the reasoning:
 
 - **NASA's terms require it.** The quota (5000 transactions per 10-minute interval) is per key,
   and the data carries an attribution requirement. An anonymous shared endpoint isn't on offer.
-- **A demo repo should show this once.** Real pipelines have credentials. Doing it properly —
-  the *ops caller* reads the environment and injects the key as a constructor argument, while the
-  stage never touches `os.environ` — demonstrates that the framework's no-env-magic rule and
-  real-world secrets are compatible. Getting that wrong (an env read buried in a stage) is a
-  common enough mistake to be worth one worked counter-example.
+- **A demo repo should show this.** Real pipelines have credentials. Doing it properly — the key
+  encrypted on a config topic, the keyring injected by the *ops caller*, the stage never touching
+  `os.environ` — demonstrates that the framework's no-env-magic rule and real-world secrets are
+  compatible. One wrinkle is specific to FIRMS: the key is part of every request **URL**, so the
+  ops caller quiets httpx's INFO request log, and an HTTP error's traceback still shows the URL
+  (worth knowing before you paste one).
 - **The cost is bounded — but you have to count it.** Two GETs per region per poll, each billed
   as *several* transactions (~4 for a 10° box over two days), at the 15-minute poll interval:
   20 named regions cost ~160 transactions per round, nowhere near the meter. A few hundred
@@ -157,24 +182,32 @@ only knowingly. Here is the reasoning:
   therefore names both causes and hands you the status URL; if the key checks out there, you are
   over quota and it drains within 10 minutes of the polling stopping.
 
-`FIRMS_MAP_KEY` is only needed by `run-wildfire-ingest`. `setup-wildfire` and `run-wildfire-tracker` work
-without it, and `request-wildfire` merely *uses* it, if present, to preview a region's live detection
-count.
+The key is only needed by `run-wildfire-ingest` — and until one is stored, the ingest idles with a
+single warning rather than crash-looping. `setup-wildfire` and `run-wildfire-tracker` need neither
+key nor keyring, and `request-wildfire` merely *uses* the stored key, if it and the keyring are at
+hand, to preview a region's live detection count.
 
 ## Run it
 
 With the [stack](../../README.md#the-stack) up:
 
 ```bash
-export FIRMS_MAP_KEY=<your key>
-uv run poe wildfire                     # setup (topics + schema) then run both stages
+uv run poe setup-wildfire                                                       # topics first (incl. wildfire-credentials)
+uv run poe request-wildfire key < ~/.config/flechtwerk-examples/firms-map-key   # once; needs the keyring
+uv run poe wildfire                     # setup (idempotent) then run both stages
 uv run poe request-wildfire "Alentejo, Portugal"
 ```
+
+Order matters for the `key` step: run it **after** setup, or the broker auto-creates
+`wildfire-credentials` uncompacted and setup then leaves that topic as it found it. The key file
+alone is not enough — nothing reads it but `request-wildfire key`; the stage reads only the
+encrypted record. Run `key` once, and again whenever the key changes.
 
 or step by step:
 
 ```bash
 uv run poe setup-wildfire                # topics + ClickHouse schema (nothing seeded)
+uv run poe request-wildfire key < ~/.config/flechtwerk-examples/firms-map-key   # the MAP_KEY, encrypted (once)
 uv run poe request-wildfire "Attica, Greece"          # geocoded, validated, previewed
 uv run poe request-wildfire "My Valley" -8.9 36.9 -6.8 39.2   # or pin the bbox yourself
 uv run poe request-wildfire world        # or watch the whole planet (see "The world watch")
@@ -390,10 +423,6 @@ Region geocoding uses [Nominatim](https://nominatim.org/) — data ©
   framework lesson.
 - **Reverse-geocoding fires to admin regions** via ClickHouse polygon dictionaries — the ADS-B
   example already teaches that, and reusing its dictionaries would couple the two.
-- **Encrypted MAP_KEY in the config record** — the framework ships a keyring/secrets facility
-  (`flechtwerk.secrets`, `keyring=` on `Flechtwerk.of`) that could carry the key as an encrypted
-  config attribute instead of an environment variable. [TMDB Catalog](../tmdb_catalog) is that
-  example, for its own token; the same move would work here.
 - **Dynamic re-tiling of the world watch** — an ops cron re-running `request-wildfire world`
   as the burn belt moves, rather than the operator doing it. The mechanism (re-tile, diff,
   tombstone) already exists; only the scheduling is missing, and it belongs to ops, not to a
