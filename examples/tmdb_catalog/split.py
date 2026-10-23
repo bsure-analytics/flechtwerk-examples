@@ -11,8 +11,7 @@ the same ids arrive again and again while the day accrues. The state — one rec
 wire key of the raw topic — is a ``SEEN`` set of the ids already emitted for the open day, and an
 ``open`` page emits only ids not in it. A ``closed`` page (the day's one listing after midnight
 UTC, or any backfill day) emits **every** id again: an entity edited after its hourly fetch is
-fetched once more, so the catalog's copy of any day is final within one poll of midnight, and the
-catalog's content-hash gate turns a no-op second fetch into nothing.
+fetched once more, and the catalog's content-hash gate turns a no-op second fetch into nothing.
 
 **Why this is a stage of its own.** It is the transformation the extractor must not do. Keeping
 the backup raw means a change of rule here — a different adult policy, a different dedupe — is a

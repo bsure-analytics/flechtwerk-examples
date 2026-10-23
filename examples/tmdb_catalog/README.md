@@ -74,8 +74,10 @@ flowchart LR
    per window** (inclusive at both ends, so `start_date == end_date`). Closed days are listed
    once; *today* is still accruing, so it is re-listed in full every poll, and `split` emits only
    the ids not in its `SEEN` set. When midnight UTC passes, the day gets **one full closing
-   listing** — every id again, marked `closed` — so the catalog's copy of any day is final within
-   one poll of midnight, and the hash gate turns a no-op second fetch into nothing.
+   listing** — every id again, marked `closed` — so an entity edited after its last hourly fetch
+   is fetched once more, and the hash gate turns a no-op second fetch into nothing. (TMDB keeps
+   amending a past day's listing for a while after midnight, so even the closing listing is not
+   the last word — see [Caveats](#caveats-read-these).)
 5. **Commit-per-day backfill.** The poll yields one `State` per day. Every `State` yield is a
    commit boundary, so a 90-day backfill is 90 transactions, a crash resumes at the last closed
    day, and no transaction outlives the framework's 10-minute limit.
@@ -190,9 +192,14 @@ requests per second.
   If it ever bites, the oldest ids are re-fetched — harmless, the hash gate drops them.
 - **A `since` edit does not rewind.** The cursor is monotonic; `since` only seeds a feed that
   has never listed. To re-list, use a fresh application id or delete the changelog.
-- **Freshness** is one poll interval (an hour); a day's copy is final one poll after midnight UTC.
-  The wall clock decides only which day is *today* — and it is the UTC calendar day, which was
+- **Freshness** is one poll interval (an hour). The wall clock decides only which day is *today* — and it is the UTC calendar day, which was
   measured to be exactly TMDB's listing day.
+- **A closed day's listing keeps changing.** TMDB amends a past day's change list well after
+  midnight UTC — measured for 2026-10-22's movies: 4 362 ids at 19:25 UTC the next day, 5 906 at
+  20:45, and 8 730 when this plan was researched earlier that day (TV and people barely moved).
+  The extractor lists a closed day exactly once, so an id TMDB adds to that day afterwards is only
+  caught at the entity's *next* change. Re-listing recently closed days on a delay (say, again
+  after 24 h) would close the gap; it is not shipped until the drift is measured over more days.
 - **The 8 concurrent detail fetches are a global bound** per catalog process, not per feed.
 - **Credit rows are never retracted.** `tmdb_credits` holds the union of every credit ever seen
   for a title within the TTL; a credit TMDB removed keeps the row of the last version that

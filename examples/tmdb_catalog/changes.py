@@ -23,7 +23,9 @@ progress.
 once, its pages marked ``closed``, and the cursor moves past it. Today is still accruing, so it is
 *open*: every poll re-lists it in full and emits its pages marked ``open`` (``split`` emits only the
 ids it hasn't seen). When midnight UTC passes, the first poll lists yesterday once more, now
-``closed`` — the day's final copy. A backfill is all closed days, so each is listed exactly once.
+``closed`` — its one closed listing. (TMDB keeps amending a past day's list for hours after
+midnight, so an id it adds later is caught only at its next change — see the README's caveats.)
+A backfill is all closed days, so each is listed exactly once.
 
 **One ``State`` per day.** Every ``State`` yield is a commit boundary: a 90-day backfill is 90
 transactions, a crash resumes at the last closed day, and no transaction outlives the framework's
@@ -84,7 +86,7 @@ def response_date(response: httpx.Response, fallback: Callable[[], datetime] = u
 
 def raise_for_status(response: httpx.Response) -> None:
     """``raise_for_status`` with the one failure an operator can fix made legible: a 401 says
-    which command re-stores the token. Shared by both stages."""
+    which command re-stores the token. Shared by the two stages that call TMDB (``changes``, ``catalog``)."""
     if response.status_code == 401:
         try:
             message = response.json().get("status_message", response.text)

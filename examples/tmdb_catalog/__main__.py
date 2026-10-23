@@ -35,8 +35,8 @@ from .split import stage as split_stage
 POLL_INTERVAL = timedelta(hours=1)
 """One hourly poll lists *today's* change feed (the open day); the day's closing re-list rides the
 first poll after midnight UTC. TMDB's feed is daily-granular and its terms are non-commercial, so
-there is nothing to gain from polling faster: freshness is one poll interval, and a day's copy is
-final one poll after midnight."""
+there is nothing to gain from polling faster: freshness is one poll interval. (A closed day is listed once;
+ids TMDB adds to it later are caught at their next change — see the README's caveats.)"""
 
 if __name__ == "__main__":
     dispatch({
