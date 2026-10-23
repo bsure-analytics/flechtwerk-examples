@@ -17,7 +17,7 @@ plugin_url: https://github.com/christian-schlichtherle/cs7-claude-plugins
 plugin_version: 0.16.2
 review_rounds: 10
 sources: []
-status: executing
+status: done
 ticket: none
 ---
 
@@ -318,7 +318,7 @@ then. Each task ends in a commit.
   - Commit: stage exactly `pyproject.toml`, `uv.lock`, `examples/_runner.py` and
     `examples/_setup.py` by name; message `Add the secrets extra and a keyring hook for the ops callers`.
 
-- [ ] **2. The example package `examples/tmdb_catalog/`**
+- [x] **2. The example package `examples/tmdb_catalog/`**
 
   Every module carries the house-style docstrings (what, why, which framework lesson). Names
   below are exact; the wire key of **every** record on `tmdb-changes` and on the four catalog
@@ -545,7 +545,7 @@ then. Each task ends in a commit.
   - Commit: `Add the TMDB Catalog example: change feeds, versioned catalog, encrypted token`
     (the tests of task 3 may be squashed into this commit if written in the same stretch).
 
-- [ ] **3. Fixtures and the three test tiers**
+- [x] **3. Fixtures and the three test tiers**
   - Capture real fixtures into `examples/tmdb_catalog/tests/fixtures/` with the token file
     (`H="Authorization: Bearer $(tr -d "[:space:]" < ~/.config/flechtwerk-examples/tmdb-token)"`):
     `movie_550.json` ← `curl -s -H "$H" "https://api.themoviedb.org/3/movie/550?append_to_response=credits,keywords,release_dates,external_ids"`;
@@ -616,7 +616,7 @@ then. Each task ends in a commit.
     `uv run pytest -m integration examples/tmdb_catalog -q` exits 0 with 2 passed.
   - Commit: `Test the TMDB Catalog example in all three tiers`.
 
-- [ ] **4. Wiring: poe targets, Prometheus, the dashboard**
+- [x] **4. Wiring: poe targets, Prometheus, the dashboard**
   - `pyproject.toml`, `[tool.poe.tasks]`, after the `run-f1-timing` line: `setup-tmdb`
     ("Create the TMDB Catalog topics and apply the ClickHouse schema (no feed seeded — use request-tmdb)"),
     `request-tmdb` ("Store the TMDB token encrypted on tmdb-feeds / set an epoch / retire: uv run poe request-tmdb token < FILE | since 2026-07-25 [movie|tv|person] | retire [feed]; no args lists them"),
@@ -655,7 +655,7 @@ then. Each task ends in a commit.
     run is prescribed.
   - Commit: `Wire the TMDB Catalog example into poe, Prometheus and Grafana`.
 
-- [ ] **5. Documentation**
+- [x] **5. Documentation**
   - `examples/tmdb_catalog/README.md`, the wildfire structure: H1 `# TMDB Catalog — reference data as a change stream`;
     an intro naming the non-nerd pitch; a Mermaid `flowchart LR` (keyring file → `request.py`
     → `tmdb-feeds` → `TmdbChanges` ← TMDB change feeds → `tmdb-changes` → `TmdbCatalog` ← TMDB
@@ -718,7 +718,7 @@ then. Each task ends in a commit.
     `grep -c "only example needing" examples/wildfire_watch/CLAUDE.md` prints `0`.
   - Commit: `Document the TMDB Catalog example and the keyring convention`.
 
-- [ ] **6. The live run against the shared stack**
+- [x] **6. The live run against the shared stack**
   - `uv run poe up` (real; the dry run passed pre-flight). If `docker compose ps --format "{{.Name}}"`
     listed `flechtwerk-examples-prometheus-1` **before** that `up`, the stack was already running
     and Prometheus still holds the old scrape config: run `docker compose restart prometheus`
@@ -922,3 +922,10 @@ all: the evaluator cannot open the file, so it would have nothing to judge.
 
 - 2026-10-23 Pre-Flight passed. Check 1: `met:false`, condition names this plan, model `claude-sonnet-5-5`, `permissionMode` `auto`, `effort=high`. Check 2: docker 29.9.2, `compose up --dry-run` exit 0, 0 foreign containers, TMDB token 200, keyring `dev-2026-10  oct  private  scopes=-  roles=primary`, `uv run poe test` 421 passed. Check 3: remote origin `flechtwerk-examples`, branch `main`, tree clean. Check 4: `flechtwerk[mqtt]==0.17.0` count 1, `examples/tmdb_catalog` absent, `9124` count 0. `status: executing`.
 - 2026-10-23 Task 1 started and finished: secrets extra locked (flechtctl 0.17.0, joserfc 1.7.7), `_runner.run(keyring=)`, `_setup.load_keyring`. Verified `flechtctl 0.17.0`, kids `['dev-2026-10']`, 421 passed.
+- 2026-10-23 Task 2 started and finished: `examples/tmdb_catalog/` (attributes, projection, changes, catalog, setup, request, __main__, __init__, clickhouse.sql with 5 queues / 8 tables / 8 MVs). Verified imports exit 0; `python -m examples.tmdb_catalog` exits 1 with the `changes|catalog` usage line.
+- 2026-10-23 Task 3 started and finished: four real fixtures + PROVENANCE.md, logic (14), runner (20) and integration (2) tests. `uv run poe test` count in the next line; `uv run pytest -m integration examples/tmdb_catalog -q` → 2 passed.
+- 2026-10-23 Task 4 started and finished: 6 poe targets (`grep -c tmdb` → 6), Prometheus 9124/9125, dashboard `flechtwerk-tmdb` (7 content panels + attribution text; time columns aliased `time` as the wildfire dashboard does, so partitionByValues/rename works). `docker compose config --quiet` exit 0.
+- 2026-10-23 Task 5 started and finished: example README + CLAUDE.md, root README row 11 + ports, root CLAUDE.md (key list, five examples, three env readers, ENCRYPTED convention), wildfire CLAUDE.md/__main__ wording. One edit beyond the listed ones: `examples/wildfire_watch/README.md`'s extension point said no example used the keyring yet — now points at tmdb_catalog (wording only). `graphify update .` ran (see exit in session). Verified `grep -c tmdb README.md CLAUDE.md` → 1 / 5, `grep -c "only example needing" examples/wildfire_watch/CLAUDE.md` → 0.
+- 2026-10-23 Task 6 started and finished (no code changes needed). Stack was down, `uv run poe up` healthy (Prometheus loaded 9124/9125 on its first start; both targets `up`). `setup-tmdb` created 6 topics + applied 21 ClickHouse statements; `request-tmdb token` printed 3 lines kid `dev-2026-10`; `since 2026-10-22`. Both stages ran as background processes. Thresholds met 234 s after `up`: movies=1995 tv=2568 people=491 credits=428983 (earlier polls: 144 s movies=515, 234 s people=491). Metrics: `flechtwerk_secret_decrypts_total{client_id="tmdb-catalog-0",kid="dev-2026-10",scope=""} 6000.0`, `flechtwerk_keyring_keys_loaded{client_id="tmdb-changes-0",kid="dev-2026-10"} 1.0`; `tmdb_changes` by feed: movie 8396, person 6630, tv 3221; Grafana `flechtwerk-tmdb` 200; 0 error/exception lines in either log. Stages stopped with `pkill` (background tasks reported exit 144 = SIGTERM, expected), `pgrep` empty; stack left up.
+- 2026-10-23 Pre-Closeout re-run of work criteria 1-9 after the last work commit (`7cc1c96`), all passing: (1) `uv run poe test` exit 0, `455 passed, 22 deselected` (> 421); (2) `uv run pytest -m integration examples/tmdb_catalog -q` exit 0, `2 passed`; (3) `flechtctl 0.17.0`; (4) `uv run poe --help | grep -c tmdb` → 6; (5) `flechtwerk-tmdb`; (6) `grep -c "host.docker.internal:9124"` → 1; (7) ClickHouse `tmdb_movies` 1995, `tmdb_credits` 437296; (8) Grafana `flechtwerk-tmdb` HTTP 200; (9) `grep -c "only example needing" examples/wildfire_watch/CLAUDE.md` → 0, `grep -c tmdb_catalog` README.md 1 / CLAUDE.md 3. All six task checkboxes ticked.
+- 2026-10-23 Outcome: done. Work commits on `main`: 5c2fc2c (secrets extra + keyring hook; this commit also carried the plan file's Pre-Flight/task-1 log), a66fa5d (package), e3d4352 (tests), fa060de (wiring), 7cc1c96 (docs). Deviations from the plan text, all minor: dashboard time columns aliased `time` (as wildfire's dashboard does) instead of `t`; `examples/wildfire_watch/README.md` extension-point wording updated (it said no example used the keyring yet); the TMDB logo `<img>` is in the README's Attribution section as the plan requires (no screenshot added). Stack left up with the live data; nothing pushed.
