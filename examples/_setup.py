@@ -6,6 +6,14 @@ the framework insists; this is the setup twin of ``examples._runner``.
 """
 import contextlib
 import logging
+import os
+import sys
+from pathlib import Path
+
+from flechtwerk.keyring import Keyring
+
+KEYRING_ENV = "FLECHTWERK_KEYRING"
+DEFAULT_KEYRING = Path("~/.config/flechtwerk-examples/keyring.json")
 
 
 @contextlib.contextmanager
@@ -30,3 +38,24 @@ def quiet_fresh_topic_produce_race():
         yield
     finally:
         sender_log.setLevel(previous)
+
+
+def load_keyring(env_var: str = KEYRING_ENV, default: Path = DEFAULT_KEYRING) -> Keyring:
+    """Load the keyring file that encrypts and decrypts ``ENCRYPTED`` config attributes.
+
+    The path is ``$FLECHTWERK_KEYRING`` or ``default`` (``~`` expanded); a missing file
+    exits with the command that creates one. This is an ops-side environment read — the
+    ``wildfire_watch`` / ``chaos_harness`` precedent, restated for key material: it is
+    the *path* that comes from the environment, the keys stay in the file, and neither
+    may ever enter a stage module or a topic. Stages never call this; the ops caller
+    (``__main__.py``, ``request.py``) loads the keyring and injects it
+    (``examples._runner.run(keyring=...)``).
+    """
+    path = Path(os.environ.get(env_var) or default).expanduser()
+    if not path.is_file():
+        sys.exit(
+            f"no keyring at {path}\n"
+            f"create one: uv run flechtctl keyring new --kid dev-$(date -u +%Y-%m) {path}\n"
+            f"then: chmod 600 {path}"
+        )
+    return Keyring.from_json(path.read_text())

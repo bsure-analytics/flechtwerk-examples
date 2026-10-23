@@ -20,6 +20,7 @@ from collections.abc import Callable
 from datetime import timedelta
 
 from flechtwerk import Extractor, Flechtwerk, MqttBrokerConfig, Transformer
+from flechtwerk.keyring import Keyring
 
 if sys.platform == "win32":  # uvloop is POSIX-only; stock asyncio elsewhere (e.g. Windows)
     import asyncio as _loop
@@ -40,13 +41,16 @@ def run(
     metrics_port: int = 0,
     poll_interval: timedelta | None = None,
     mqtt: MqttBrokerConfig | None = None,
+    keyring: Keyring | None = None,
 ) -> None:
     """Configure logging and run one stage on uvloop until interrupted.
 
     ``client_id`` is the process identity and doubles as the metrics label
     (``metrics_labels`` must be non-empty when ``metrics_port > 0``). Extractors
     pass a ``poll_interval``; transformers omit it. Only the MQTT bridge passes
-    ``mqtt``.
+    ``mqtt``. ``keyring`` is the process keyring for ``ENCRYPTED`` config attributes,
+    loaded by the ops caller (``examples._setup.load_keyring``); ``None`` for stages
+    without encrypted attributes.
 
     **Ctrl-C** (SIGINT) is turned by ``uvloop.run`` into a cancel of the main task,
     which unwinds ``Flechtwerk.__aexit__`` (consumers leave the group, producers flush,
@@ -72,6 +76,7 @@ def run(
                 application_id=application_id,
                 bootstrap_servers=bootstrap_servers,
                 client_id=client_id,
+                keyring=keyring,
                 metrics_labels={"client_id": client_id},
                 metrics_port=metrics_port,
                 mqtt=mqtt,

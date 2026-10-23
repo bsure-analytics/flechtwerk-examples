@@ -17,7 +17,7 @@ plugin_url: https://github.com/christian-schlichtherle/cs7-claude-plugins
 plugin_version: 0.16.2
 review_rounds: 10
 sources: []
-status: handed-off
+status: executing
 ticket: none
 ---
 
@@ -292,7 +292,7 @@ Ordered: task 1 gives the venv the secrets extra every later task imports; task 
 the tests in task 3 exercise; task 4 wires what task 6 runs; task 5 documents what exists by
 then. Each task ends in a commit.
 
-- [ ] **1. The secrets extra and the two shared ops hooks**
+- [x] **1. The secrets extra and the two shared ops hooks**
   - `pyproject.toml`: change the dependency to `"flechtwerk[mqtt,secrets]==0.17.0"` and add a
     comment in the style of the `gtfs-realtime-bindings` one: the `secrets` extra installs
     `flechtctl` (the keyring and the `ENCRYPTED` codec), used only by `tmdb_catalog`, whose
@@ -919,3 +919,6 @@ all: the evaluator cannot open the file, so it would have nothing to judge.
 ## Run Log
 
 (Appended by the execution session.)
+
+- 2026-10-23 Pre-Flight passed. Check 1: `met:false`, condition names this plan, model `claude-sonnet-5-5`, `permissionMode` `auto`, `effort=high`. Check 2: docker 29.9.2, `compose up --dry-run` exit 0, 0 foreign containers, TMDB token 200, keyring `dev-2026-10  oct  private  scopes=-  roles=primary`, `uv run poe test` 421 passed. Check 3: remote origin `flechtwerk-examples`, branch `main`, tree clean. Check 4: `flechtwerk[mqtt]==0.17.0` count 1, `examples/tmdb_catalog` absent, `9124` count 0. `status: executing`.
+- 2026-10-23 Task 1 started and finished: secrets extra locked (flechtctl 0.17.0, joserfc 1.7.7), `_runner.run(keyring=)`, `_setup.load_keyring`. Verified `flechtctl 0.17.0`, kids `['dev-2026-10']`, 421 passed.
