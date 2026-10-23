@@ -1,6 +1,6 @@
 """TMDB catalog — a ``Transformer`` that fetches, projects and versions each changed entity.
 
-Stage 2. Each ``tmdb-changes`` record names an entity that changed. The stage fetches its details
+Stage 3. Each ``tmdb-changes`` record names an entity that changed. The stage fetches its details
 (with credits, keywords, ratings and external ids appended — one request), projects the response
 to a flat row, and hashes it. If the hash equals the one in the entity's state, nothing is emitted
 and nothing is written: the change was a no-op for us. Otherwise the entity gets its next

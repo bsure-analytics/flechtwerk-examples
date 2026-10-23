@@ -167,7 +167,7 @@ stream, the credential encrypted on the config topic).
   rides on every feed record because the config store is one namespace the extractor polls
   entirely. The secret counters (`flechtwerk_secret_decrypts_total`,
   `flechtwerk_keyring_keys_loaded`) on the metrics endpoint are the proof it is in use. Host
-  metrics ports `9124`/`9125` are the TMDB stages'.
+  metrics ports `9124`/`9125`/`9126` are the TMDB stages' (changes, split, catalog).
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's
   `PrometheusObserver` calls `.labels(**metrics_labels)` on every metric, so `{}`
   crashes at startup. Pass at least one label (e.g. `{"client_id": client_id}`).

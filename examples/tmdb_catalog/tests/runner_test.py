@@ -4,10 +4,13 @@ Each stage runs through the framework's real runner over the shipped doubles —
 network — with TMDB served by an ``httpx.MockTransport`` whose ``Date`` header (the event-time
 clock) the test controls:
 
-- **changes** drives the real ``ExtractorRunner``/``poll_one`` under a pinned clock: closed days
-  are listed once in full, the open day only emits ids it has not seen, a closing day gets its one
-  full re-list, ``adult`` ids never leave, the page cap is honoured and logged, a 401 names the
-  remedy and a 500 crashes the poll (let it crash).
+- **changes** drives the real ``ExtractorRunner``/``poll_one`` under a pinned clock: every page is
+  backed up exactly as served, with metadata beside it and nothing read but the page count;
+  closed days are listed once, the open day on every poll, and its cursor is the last closed day;
+  the page cap is honoured and logged, a 401 names the remedy and a 500 crashes the poll.
+- **split** consumes those very pages (extractor and transformer wired back to back): closed days
+  emit every id, the open day only ids it has not seen, a closing day gets its one full re-list,
+  and ``adult`` ids never leave.
 - **catalog** drives ``TransformerRunner.process_batch``: one change becomes one flat version row
   plus one row per credit, a replay is gated out by the content hash, a 404 tombstones, and a
   change for a feed nobody requested is skipped.
@@ -25,7 +28,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from flechtwerk import Config, Event, State
+from flechtwerk import Config, Event, State, Transformer
 from flechtwerk.configs import ConfigStore
 from flechtwerk.extractor import ExtractorRunner, TokenTask
 from flechtwerk.module import _FlechtwerkModule
@@ -43,6 +46,7 @@ from flechtwerk.transformer import Task
 from examples.tmdb_catalog.attributes import (
     ACCESS_TOKEN,
     CHANGED_ON,
+    CHANGES_RAW_TOPIC,
     CHANGES_TOPIC,
     CONTENT_HASH,
     CREDITS_TOPIC,
@@ -60,6 +64,7 @@ from examples.tmdb_catalog.attributes import (
 )
 from examples.tmdb_catalog.catalog import TmdbCatalog
 from examples.tmdb_catalog.changes import TmdbChanges
+from examples.tmdb_catalog.split import TmdbSplit
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MOVIE = json.loads((FIXTURES / "movie_550.json").read_text())
@@ -171,8 +176,9 @@ async def _runner(stage: TmdbChanges, since: date | None) -> tuple[ExtractorRunn
     return runner, producer
 
 
-async def _state(runner: ExtractorRunner) -> dict:
-    return await runner.tasks[0].store.get("movie")
+async def _cursor(runner: ExtractorRunner) -> date | None:
+    state = await runner.tasks[0].store.get("movie")
+    return state.get(CURSOR) if state else None
 
 
 TWO_DAYS = {
@@ -182,88 +188,72 @@ TWO_DAYS = {
 }
 
 
-async def test_changes_lists_closed_days_in_full_and_the_open_day_as_news() -> None:
+async def test_changes_backs_up_every_page_as_delivered_with_metadata() -> None:
     tmdb = Tmdb(TWO_DAYS)
     stage = tmdb.stage()
     runner, producer = await _runner(stage, YESTERDAY)
     async with stage:
         await runner.poll_one(runner.entries["movie"])
 
-    changes = _sent(producer, CHANGES_TOPIC)
-    assert [(c["id"], c["changed_on"], c["listing"]) for c in changes] == [
-        (1, "2026-10-22", "closed"), (2, "2026-10-22", "closed"), (3, "2026-10-22", "closed"),
-        (4, "2026-10-22", "closed"), (5, "2026-10-22", "closed"),
-        (5, "2026-10-23", "open"), (6, "2026-10-23", "open")]   # id 5 changed on both days
-    assert _keys(producer, CHANGES_TOPIC) == [f"movie:{c['id']}" for c in changes]
-    assert {c["feed"] for c in changes} == {"movie"}
-    assert {c["discovered_at"] for c in changes} == {"2026-10-23T12:00:00Z"}   # the server Date
+    pages = _sent(producer, CHANGES_RAW_TOPIC)
+    assert [p["response"] for p in pages] == [                  # bodies untouched, adult flags and all
+        TWO_DAYS[(YESTERDAY, 1)], TWO_DAYS[(YESTERDAY, 2)], TWO_DAYS[(TODAY, 1)]]
+    assert [p["metadata"] for p in pages] == [
+        {"feed": "movie", "changed_on": "2026-10-22", "page": 1, "listing": "closed",
+         "discovered_at": "2026-10-23T12:00:00Z"},
+        {"feed": "movie", "changed_on": "2026-10-22", "page": 2, "listing": "closed",
+         "discovered_at": "2026-10-23T12:00:00Z"},
+        {"feed": "movie", "changed_on": "2026-10-23", "page": 1, "listing": "open",
+         "discovered_at": "2026-10-23T12:00:00Z"},
+    ]
+    assert set(_keys(producer, CHANGES_RAW_TOPIC)) == {"movie"}  # a feed's pages stay in order
     assert all(r.headers["Authorization"] == f"Bearer {TOKEN}" for r in tmdb.requests)
-    assert tmdb.days_requested() == [
-        ("2026-10-22", "1"), ("2026-10-22", "2"), ("2026-10-23", "1")]
-
-    state = await _state(runner)
-    assert state[CURSOR] == YESTERDAY                   # the last CLOSED day
-    assert state[SEEN] == {TODAY.isoformat(): [5, 6]}  # the open day only
+    assert tmdb.days_requested() == [("2026-10-22", "1"), ("2026-10-22", "2"), ("2026-10-23", "1")]
+    assert await _cursor(runner) == YESTERDAY                   # the last CLOSED day — its only state
 
 
-async def test_changes_second_poll_with_the_same_bodies_emits_and_writes_nothing() -> None:
-    tmdb = Tmdb(TWO_DAYS)
-    stage = tmdb.stage()
-    runner, producer = await _runner(stage, YESTERDAY)
-    async with stage:
-        await runner.poll_one(runner.entries["movie"])
-        before = await _state(runner)
-        producer.sent.clear()
-        await runner.poll_one(runner.entries["movie"])
-
-    assert producer.sent == []
-    assert await _state(runner) == before
-    # The cursor resumed after the closed day: only today was listed again.
-    assert tmdb.days_requested()[3:] == [("2026-10-23", "1")]
-
-
-async def test_changes_open_day_emits_only_the_new_ids() -> None:
+async def test_changes_re_lists_the_open_day_in_full_every_poll() -> None:
     tmdb = Tmdb(TWO_DAYS)
     stage = tmdb.stage()
     runner, producer = await _runner(stage, YESTERDAY)
     async with stage:
         await runner.poll_one(runner.entries["movie"])
         producer.sent.clear()
-        tmdb.pages[(TODAY, 1)] = _page([5, 6, 8])
         await runner.poll_one(runner.entries["movie"])
 
-    assert [c["id"] for c in _sent(producer, CHANGES_TOPIC)] == [8]
-    assert (await _state(runner))[SEEN] == {TODAY.isoformat(): [5, 6, 8]}
+    pages = _sent(producer, CHANGES_RAW_TOPIC)
+    assert [(p["metadata"]["changed_on"], p["metadata"]["listing"]) for p in pages] == [
+        ("2026-10-23", "open")]                                 # the closed day is not listed again
+    assert pages[0]["response"] == TWO_DAYS[(TODAY, 1)]
+    assert await _cursor(runner) == YESTERDAY
 
 
-async def test_changes_a_closing_day_gets_one_full_re_list() -> None:
+async def test_changes_closes_the_day_after_midnight() -> None:
     tmdb = Tmdb(TWO_DAYS)
     stage = tmdb.stage()
     runner, producer = await _runner(stage, YESTERDAY)
     async with stage:
         await runner.poll_one(runner.entries["movie"])
         producer.sent.clear()
-
-        tomorrow = TODAY + timedelta(days=1)
         tmdb.clock["now"] = _NOON + timedelta(days=1)
-        tmdb.pages[(TODAY, 1)] = _page([5, 6, 7])        # 7 changed after the last hourly poll
         await runner.poll_one(runner.entries["movie"])
 
-    changes = _sent(producer, CHANGES_TOPIC)
-    assert [(c["id"], c["changed_on"], c["listing"]) for c in changes] == [
-        (5, "2026-10-23", "closed"), (6, "2026-10-23", "closed"), (7, "2026-10-23", "closed")]
-    state = await _state(runner)
-    assert state[CURSOR] == TODAY
-    assert state[SEEN] == {tomorrow.isoformat(): []}     # the new open day, quiet so far
+    pages = _sent(producer, CHANGES_RAW_TOPIC)
+    assert [(p["metadata"]["changed_on"], p["metadata"]["listing"]) for p in pages] == [
+        ("2026-10-23", "closed"), ("2026-10-24", "open")]
+    assert await _cursor(runner) == TODAY
 
 
-async def test_changes_never_emits_an_adult_id() -> None:
-    tmdb = Tmdb({(TODAY, 1): _page([1, 2, 3], adult={2})})
+async def test_changes_does_not_look_at_the_ids() -> None:
+    # An adult id, a duplicate and an unknown shape all travel untouched: filtering is split's job.
+    body = {"results": [{"id": 1, "adult": True}, {"id": 1}, {"surprise": "field"}], "page": 1,
+            "total_pages": 1, "total_results": 3}
+    tmdb = Tmdb({(TODAY, 1): body})
     stage = tmdb.stage()
     runner, producer = await _runner(stage, TODAY)
     async with stage:
         await runner.poll_one(runner.entries["movie"])
-    assert [c["id"] for c in _sent(producer, CHANGES_TOPIC)] == [1, 3]
+    assert [p["response"] for p in _sent(producer, CHANGES_RAW_TOPIC)] == [body]
 
 
 async def test_changes_defaults_the_epoch_to_the_last_ninety_days() -> None:
@@ -284,7 +274,7 @@ async def test_changes_honours_the_page_cap_and_says_so(caplog: pytest.LogCaptur
     with caplog.at_level(logging.WARNING):
         async with stage:
             await runner.poll_one(runner.entries["movie"])
-    assert [c["id"] for c in _sent(producer, CHANGES_TOPIC)] == [1, 2]     # page 1 only
+    assert len(_sent(producer, CHANGES_RAW_TOPIC)) == 1                     # page 1 only
     assert tmdb.days_requested() == [("2026-10-23", "1")]
     assert "capped at 1" in caplog.text
 
@@ -305,6 +295,81 @@ async def test_changes_a_500_crashes_the_poll() -> None:
     async with stage:
         with pytest.raises(httpx.HTTPStatusError):
             await runner.poll_one(runner.entries["movie"])
+
+
+# --- split: the extractor's pages through the TransformerRunner ---
+
+class Pipeline:
+    """The extractor and ``split`` wired back to back over the fakes: each poll's raw pages are
+    fed to the split runner as one batch, so the open-day dedupe runs on what the backup holds."""
+
+    def __init__(self, pages: dict[tuple[date, int], dict]) -> None:
+        self.tmdb = Tmdb(pages)
+        self.extractor = self.tmdb.stage()
+        self.split = _make_module(TmdbSplit(), [])
+        self.offset = 0
+
+    async def poll(self) -> list[dict]:
+        runner, producer = self.runner, self.producer
+        await runner.poll_one(runner.entries["movie"])  # client injected: no __aenter__ needed
+        records = []
+        for topic, payload in producer.sent:
+            records.append(make_record(key=payload["key"], value=payload["value"], topic=topic,
+                                       partition=0, offset=self.offset))
+            self.offset += 1
+        producer.sent.clear()
+        out = self.split.runner.tasks[0].producer
+        out.sent.clear()
+        self.split.runner.consumer = FakeKafkaConsumer(records)
+        await _process(self.split)
+        return _sent(out, CHANGES_TOPIC)
+
+    async def start(self, since: date) -> "Pipeline":
+        self.runner, self.producer = await _runner(self.extractor, since)
+        return self
+
+    async def seen(self) -> dict:
+        return (await self.split.runner.tasks[0].store.get("movie"))[SEEN]
+
+
+async def test_split_emits_closed_days_in_full_and_the_open_day_as_news() -> None:
+    pipeline = await Pipeline(dict(TWO_DAYS)).start(YESTERDAY)
+    changes = await pipeline.poll()
+
+    assert [(c["id"], c["changed_on"], c["listing"]) for c in changes] == [
+        (1, "2026-10-22", "closed"), (2, "2026-10-22", "closed"), (3, "2026-10-22", "closed"),
+        (4, "2026-10-22", "closed"), (5, "2026-10-22", "closed"),
+        (5, "2026-10-23", "open"), (6, "2026-10-23", "open")]   # id 5 changed on both days
+    keys = _keys(pipeline.split.runner.tasks[0].producer, CHANGES_TOPIC)
+    assert keys == [f"movie:{c['id']}" for c in changes]
+    assert {c["discovered_at"] for c in changes} == {"2026-10-23T12:00:00Z"}
+    assert await pipeline.seen() == {TODAY.isoformat(): [5, 6]}  # the open day only
+
+
+async def test_split_the_hourly_re_list_emits_only_the_news() -> None:
+    pipeline = await Pipeline(dict(TWO_DAYS)).start(YESTERDAY)
+    await pipeline.poll()
+    assert await pipeline.poll() == []                           # same bodies: nothing new
+    pipeline.tmdb.pages[(TODAY, 1)] = _page([5, 6, 8])
+    assert [c["id"] for c in await pipeline.poll()] == [8]
+    assert await pipeline.seen() == {TODAY.isoformat(): [5, 6, 8]}
+
+
+async def test_split_a_closing_day_gets_one_full_re_list() -> None:
+    pipeline = await Pipeline(dict(TWO_DAYS)).start(YESTERDAY)
+    await pipeline.poll()
+    pipeline.tmdb.clock["now"] = _NOON + timedelta(days=1)
+    pipeline.tmdb.pages[(TODAY, 1)] = _page([5, 6, 7])          # 7 changed after the last hourly poll
+    changes = await pipeline.poll()
+
+    assert [(c["id"], c["changed_on"], c["listing"]) for c in changes] == [
+        (5, "2026-10-23", "closed"), (6, "2026-10-23", "closed"), (7, "2026-10-23", "closed")]
+    assert await pipeline.seen() == {(TODAY + timedelta(days=1)).isoformat(): []}
+
+
+async def test_split_never_emits_an_adult_id() -> None:
+    pipeline = await Pipeline({(TODAY, 1): _page([1, 2, 3], adult={2})}).start(TODAY)
+    assert [c["id"] for c in await pipeline.poll()] == [1, 3]
 
 
 # --- catalog: the TransformerRunner over the fakes ---
@@ -336,7 +401,7 @@ def _change(feed: str, tmdb_id: int, offset: int = 0):
                        partition=0, offset=offset)
 
 
-def _make_module(stage: TmdbCatalog, records: list) -> _FlechtwerkModule:
+def _make_module(stage: Transformer, records: list) -> _FlechtwerkModule:
     module = _FlechtwerkModule()
     module.application_id = "tmdb-catalog"
     module.client_id = "tmdb-catalog"

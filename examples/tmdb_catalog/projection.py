@@ -1,8 +1,9 @@
 """The pure half of the TMDB Catalog — URL building, change-page parsing, projection, hashing.
 
 Nothing here touches the framework, the network or a clock, so the logic tier drives it straight
-off the captured fixtures (``tests/fixtures/``) and both stages stay thin: ``changes`` pages
-through :func:`changes_path`, ``catalog`` fetches :func:`details_path` and runs the matching
+off the captured fixtures (``tests/fixtures/``) and the stages stay thin: ``changes`` pages
+through :func:`changes_path` (and reads nothing else), ``split`` parses each page with
+:func:`parse_changes_page`, ``catalog`` fetches :func:`details_path` and runs the matching
 projector.
 
 **Spread through, declare only what you compute.** TMDB's responses are a foreign schema that

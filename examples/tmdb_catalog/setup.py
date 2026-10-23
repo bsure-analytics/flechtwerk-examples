@@ -2,12 +2,12 @@
 
     uv run poe setup-tmdb
 
-Creates the compacted feed-config topic and the five data topics, and applies the ClickHouse
+Creates the compacted feed-config topic and the six data topics, and applies the ClickHouse
 schema. **Nothing is seeded** — a feed record carries the access token, which is a secret that
 only ``request-tmdb token`` may write (encrypted). Set one up after this step.
 
-All six topics share a partition count and every record is keyed ``<feed>:<id>`` (the config
-record by the bare feed name), so an entity's change records, its versions and its credits
+All seven topics share a partition count and every record is keyed ``<feed>:<id>`` (the config
+record and the raw pages by the bare feed name), so an entity's change records, its versions and its credits
 co-partition onto the one catalog task that owns its state.
 """
 import asyncio
@@ -17,6 +17,7 @@ import httpx
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
 from .attributes import (
+    CHANGES_RAW_TOPIC,
     CHANGES_TOPIC,
     CREDITS_TOPIC,
     FEEDS_TOPIC,
@@ -32,13 +33,14 @@ PARTITIONS = 8
 
 
 async def create_topics() -> None:
-    """Create the compacted feed-config topic and the five partitioned data topics."""
+    """Create the compacted feed-config topic and the six partitioned data topics."""
     admin = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP_SERVERS)
     await admin.start()
     try:
         existing = set(await admin.list_topics())
         specs = [
             (FEEDS_TOPIC, PARTITIONS, {"cleanup.policy": "compact"}),  # feeds + encrypted token
+            (CHANGES_RAW_TOPIC, PARTITIONS, {}),                       # change-feed pages as delivered
             (CHANGES_TOPIC, PARTITIONS, {}),                           # "<feed>:<id> changed on <day>"
             (MOVIES_TOPIC, PARTITIONS, {}),                            # one row per movie version
             (TV_TOPIC, PARTITIONS, {}),                                # one row per TV-series version
@@ -82,7 +84,7 @@ async def main() -> None:
     print("     uv run poe request-tmdb token < ~/.config/flechtwerk-examples/tmdb-token")
     print("3. Optionally pick an epoch (default: the last 90 days), e.g.:")
     print("     uv run poe request-tmdb since 2026-07-25 [movie|tv|person]")
-    print('4. Then "uv run poe tmdb" (setup + both stages).')
+    print('4. Then "uv run poe tmdb" (setup + all three stages).')
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ response that produced the record.
 """
 from typing import Final
 
-from flechtwerk.attribute import Attribute, DATE, DATETIME, DICT, FLOAT, INT, LIST, STR
+from flechtwerk.attribute import Attribute, DATE, DATETIME, DICT, FLOAT, INT, LIST, RECORD, STR
 from flechtwerk.secrets import ENCRYPTED
 
 # --- Topics (the wire contract) ---
@@ -29,6 +29,10 @@ FEEDS_TOPIC: Final = "tmdb-feeds"
 """Compacted config topic, one record per feed (``movie`` | ``tv`` | ``person``), keyed by the
 feed name — which doubles as TMDB's path segment. Written by ``request-tmdb`` (the token goes in
 encrypted), never seeded by setup."""
+CHANGES_RAW_TOPIC: Final = "tmdb-changes-raw"
+"""The extractor's backup: one record per change-feed page **exactly as TMDB delivered it**,
+nested under ``RESPONSE`` with the request's provenance under ``METADATA`` (the ``adsb-raw``
+shape). Keyed by the feed name, so a feed's pages stay in order on one ``split`` task."""
 CHANGES_TOPIC: Final = "tmdb-changes"
 """Partitioned stream of change notifications — one record per (id, day) the daily change feed
 listed — keyed ``<feed>:<id>`` (``movie:550``) so one entity's changes land on one catalog task."""
@@ -58,6 +62,18 @@ SINCE: Final = Attribute("since", DATE, optional=True)
 default is the last ``DEFAULT_LOOKBACK_DAYS`` days. It only *seeds* the cursor; editing it later
 does not rewind."""
 
+# --- Raw page record (tmdb-changes-raw; wire key = feed name) ---
+
+METADATA: Final = Attribute("metadata", RECORD)
+"""The request's provenance, nested: ``FEED``, ``CHANGED_ON`` (the day listed), ``PAGE``,
+``LISTING`` and ``DISCOVERED_AT`` (the response's ``Date``). Everything here is ours — what we
+asked for and when — never read out of the body."""
+RESPONSE: Final = Attribute("response", RECORD)
+"""The change-feed page as delivered, ``Record.wrap``-ed at the HTTP edge and never inspected
+by the extractor — the uncontrolled schema keeps its own namespace."""
+PAGE: Final = Attribute("page", INT)
+"""The page number requested (TMDB pages start at 1)."""
+
 # --- Change record (tmdb-changes; wire key = "<feed>:<id>") ---
 
 TMDB_ID: Final = Attribute("id", INT)
@@ -73,10 +89,14 @@ DISCOVERED_AT: Final = Attribute("discovered_at", DATETIME)
 # --- Extractor state (one record per feed) ---
 
 CURSOR: Final = Attribute("cursor", DATE, optional=True)
-"""The last **closed** day fully listed — monotonic. Absent until a day has closed."""
+"""The last **closed** day fully listed — monotonic. Absent until a day has closed. The
+extractor's only state: it records *how far it has listed*, never what the pages said."""
+
+# --- Split state (one record per feed) ---
+
 SEEN: Final = Attribute("seen", DICT(LIST(INT)))
-"""``{iso_date: [ids]}`` for the **open** day only: what was already emitted for it, so the next
-hourly poll emits just the news. Pruned to today every poll and hard-capped (see
+"""``{iso_date: [ids]}`` for the **open** day only: what ``split`` already emitted for it, so the
+hourly re-listing of today yields just the news. Pruned to the open day and hard-capped (see
 ``projection.prune_seen``)."""
 
 # --- Catalog records (spread from TMDB; these are the computed fields) ---

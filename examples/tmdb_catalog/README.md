@@ -14,9 +14,11 @@ real credential travel on a config topic without ever being plaintext?*
 flowchart LR
     KR[/"keyring.json<br/>(flechtctl keyring new)"/]:::ext --> RQ["request.py<br/>token → ENCRYPTED(STR)"]:::process
     RQ --> CFG(["tmdb-feeds<br/>(compacted config)<br/>movie | tv | person<br/>access_token = flenc:jwe:…"]):::topic
-    CFG --> CX["TmdbChanges (Extractor)<br/>one calendar day per window<br/>CURSOR = last closed day<br/>SEEN = ids of the open day"]:::process
+    CFG --> CX["TmdbChanges (Extractor)<br/>backup only: pages as delivered<br/>one calendar day per window<br/>CURSOR = last closed day"]:::process
     TMDBC{{"TMDB<br/>/{feed}/changes"}}:::ext --> CX
-    CX --> CH(["tmdb-changes<br/>key = feed:id"]):::topic
+    CX --> RAW(["tmdb-changes-raw<br/>{metadata, response}<br/>key = feed"]):::topic
+    RAW --> SP["TmdbSplit (Transformer)<br/>page → one record per id<br/>adult ids dropped<br/>SEEN = ids of the open day"]:::process
+    SP --> CH(["tmdb-changes<br/>key = feed:id"]):::topic
     CH --> CT["TmdbCatalog (Transformer)<br/>fetch details → project → content hash<br/>new hash ⇒ next version"]:::process
     CFG --> CT
     TMDBD{{"TMDB<br/>/{feed}/{id}?append_to_response=…"}}:::ext --> CT
@@ -59,15 +61,22 @@ flowchart LR
    rather than on a record of its own because the config store merges every config topic a stage
    declares into one namespace and the extractor polls *every* entry of it — a separate
    credentials record would be polled as if it were a feed.
-3. **A calendar-day cursor with a seen-set for the open day.** TMDB caps a change window at 14 days
+3. **An extractor is a backup, not a parser.** `changes` never interprets what TMDB sends: each
+   change-feed page goes to `tmdb-changes-raw` exactly as delivered, under `response`, beside a
+   `metadata` record of what was asked and when (feed, day, page, `open`/`closed`, the server
+   `Date`) — the `adsb-raw` shape. No `Attribute` describes the body; the one field read from it
+   is the envelope's `total_pages`, without which paging is impossible. Everything that *reads*
+   the data — splitting a page into per-id records, dropping `adult` ids, deduping — is the
+   `split` transformer's job, so changing a rule is a replay of the backup, not a re-crawl.
+4. **A calendar-day cursor with a seen-set for the open day.** TMDB caps a change window at 14 days
    and `page` at 500 (100 ids per page). Measured on 2026-10-23: a day of people is ~60 pages,
    but a 14-day people window is ~600 — over the cap. So the extractor lists **one calendar day
    per window** (inclusive at both ends, so `start_date == end_date`). Closed days are listed
-   once; *today* is still accruing, so it is listed every poll and only the ids not in the
-   `SEEN` set are emitted. When midnight UTC passes, the day gets **one full closing re-list** —
-   every id again, marked `closed` — so the catalog's copy of any day is final within one poll of
-   midnight, and the hash gate turns a no-op second fetch into nothing.
-4. **Commit-per-day backfill.** The poll yields one `State` per day. Every `State` yield is a
+   once; *today* is still accruing, so it is re-listed in full every poll, and `split` emits only
+   the ids not in its `SEEN` set. When midnight UTC passes, the day gets **one full closing
+   listing** — every id again, marked `closed` — so the catalog's copy of any day is final within
+   one poll of midnight, and the hash gate turns a no-op second fetch into nothing.
+5. **Commit-per-day backfill.** The poll yields one `State` per day. Every `State` yield is a
    commit boundary, so a 90-day backfill is 90 transactions, a crash resumes at the last closed
    day, and no transaction outlives the framework's 10-minute limit.
 
@@ -82,7 +91,9 @@ Three entity catalogs and the credits that link them, from TMDB's v3 API:
 | `person` | `external_ids` | `tmdb-people` | `tmdb_people`, `tmdb_people_current` |
 | (credits of a title) | — | `tmdb-credits` | `tmdb_credits` |
 
-plus `tmdb-changes` → `tmdb_changes` (one row per id per listing), eight tables in all. Every record
+plus `tmdb-changes` → `tmdb_changes` (one row per id per listing), eight tables in all. The
+extractor's backup, `tmdb-changes-raw`, stays in Kafka only: it is the replay source for `split`,
+not something to query. Every record
 is keyed `<feed>:<id>` (`movie:550`), which co-partitions a title's changes, versions and credits.
 
 The Kafka topics are **flat JSON, one row per entity version and one per credit**, so a
@@ -140,12 +151,13 @@ uv run poe up
 uv run poe setup-tmdb                                   # topics + ClickHouse schema (nothing seeded)
 uv run poe request-tmdb token < ~/.config/flechtwerk-examples/tmdb-token
 uv run poe request-tmdb since 2026-07-25                # optional epoch; default: the last 90 days
-uv run poe tmdb                                         # setup, then both stages (restart-on-crash)
+uv run poe tmdb                                         # setup, then all three stages (restart-on-crash)
 ```
 
-or stage by stage: `uv run poe run-tmdb-changes` (hourly extractor, metrics on `9124`) and
-`uv run poe run-tmdb-catalog` (transformer, metrics on `9125`), each a separate process. The
-`__main__` targets are `python -m examples.tmdb_catalog changes|catalog`. `request-tmdb since
+or stage by stage: `uv run poe run-tmdb-changes` (hourly backup extractor, metrics on `9124`),
+`uv run poe run-tmdb-split` (page splitter, `9125`) and `uv run poe run-tmdb-catalog` (catalog
+transformer, `9126`), each a separate process. The `__main__` targets are
+`python -m examples.tmdb_catalog changes|split|catalog`. `request-tmdb since
 <date> [movie|tv|person]` sets an epoch (it edits around the stored ciphertext, so it needs no
 keyring), `request-tmdb retire [feed]` tombstones a feed, and `request-tmdb` alone lists what is
 requested. Then open Grafana (`http://localhost:3000`, dashboard *Flechtwerk — TMDB Catalog*) or
@@ -172,7 +184,8 @@ requests per second.
 - **The 500-page cap.** One day is ≤ ~90 pages in practice, so the cap is not reached; if it
   ever is, the extractor lists the capped pages, logs a warning, and the ids beyond are caught on
   their next change.
-- **`adult: true` ids are dropped** at the extractor and never reach the catalog.
+- **`adult: true` ids are dropped** by `split` and never reach the catalog (the raw backup keeps
+  the pages as TMDB sent them).
 - **The seen-set has a hard cap** (60 000 ids ≈ 540 KB, under the ~1 MB changelog-record ceiling).
   If it ever bites, the oldest ids are re-fetched — harmless, the hash gate drops them.
 - **A `since` edit does not rewind.** The cursor is monotonic; `since` only seeds a feed that
