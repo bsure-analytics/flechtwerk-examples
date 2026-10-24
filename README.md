@@ -142,6 +142,57 @@ F1 timing, `9124` TMDB changes + `9125` TMDB split + `9126` TMDB catalog; the ch
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
+### Reading it from FRET Studio
+
+FRET Studio, BSure Analytics' AI data analyst, reads this ClickHouse strictly
+read-only. Point it at the stack in its root `.env`:
+
+```bash
+CLICKHOUSE_URL=http://localhost:8123
+CLICKHOUSE_USER=studio
+CLICKHOUSE_PASSWORD=studio
+CLICKHOUSE_DATABASE=flechtwerk
+```
+
+**The `studio` user** (`clickhouse/users.d/studio.xml`, password `studio`, a fixed
+local one like the passwordless `default`) is read-only by construction: its profile
+holds `readonly = 2`, which Studio insists on, and `max_execution_time` at the 60
+seconds Studio sends; its grants are `SELECT` and `dictGet` on `flechtwerk.*` and
+`SELECT` on `system.tables`, `system.columns` and `system.dictionaries`, nothing
+on `url`, `s3`, `file` or `remote`. It lives in `users.d` rather than behind a
+`CREATE USER`, so a fresh volume and an existing one get it alike.
+
+**`__time` makes a table chartable.** Studio charts a table or view of
+`flechtwerk` that has a column named exactly `__time`, and reads every other one
+whole, as a lookup (Kafka queues and materialized views are neither). Each
+example's `clickhouse.sql` gives its tables one of two kinds:
+
+- **An `ALIAS` column** on an append-only `MergeTree`, naming the time the row is
+  about: `ALTER TABLE … ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS
+  <column>`. It costs no storage, and ClickHouse still prunes by it.
+- **A view `<table>_v`** over a `ReplacingMergeTree`, which only reads right
+  `FINAL`: `CREATE VIEW IF NOT EXISTS … AS SELECT *, <column> AS __time FROM … FINAL`
+  (and `WHERE is_deleted = 0` for `adsb_aircraft`). A range filter on the view is
+  applied after the merge, so it never returns a superseded version. The table itself
+  gets no `__time`, so its duplicates are never charted; it stays a lookup.
+
+| Example | `ALIAS __time` (column) | View `_v` (`__time`) | Left a lookup |
+|---|---|---|---|
+| ADS-B | `adsb_events` (`at`), `adsb_positions` (`polled_at`, the sink's) | `adsb_aircraft_v` (`polled_at`) | the boundary tables and their polygon dictionaries |
+| Chaos | | | `chaos_output` (no time) |
+| Fermentation | `fermentation_readings`, `fermentation_alerts` (`at`) | | |
+| GDELT | | `gdelt_stories_v` (`first_seen`), `gdelt_event_coverage_v` (`first_mention_at`, else `updated_at`) | |
+| GTFS | `gtfs_delay_history` (`feed_ts`) | `gtfs_train_delays_v` (`feed_ts`) | |
+| SMARD | `smard_revisions` (`fetched_at`, when the restatement was seen) | `smard_observations_v`, `smard_mix_v` (`ts`, the interval) | |
+| Odds | `odds_quotes` (`fetched_at`), `odds_margins`, `odds_signals` (`computed_at`) | | |
+| Wildfire | `wildfire_detections` (`acquired_at`), `wildfire_sweeps` (`sweep_at`), `wildfire_status` (`as_of`), `wildfire_events` (`occurred_at`) | `wildfire_active_v` (`first_seen`; extinguished fires too, filter on `status`) | |
+| F1 | the eleven append-only tables (`event_time`, the tape's) | `f1_track_status_v` (`started_at`) | `f1_sessions`, `f1_drivers` (the dimensions, read whole) |
+| TMDB | `tmdb_changes` (`changed_on`, at midnight UTC), `tmdb_movies`, `tmdb_tv`, `tmdb_people` (`version_at`) | `tmdb_movies_current_v`, `tmdb_tv_current_v`, `tmdb_people_current_v`, `tmdb_credits_v` (`version_at`) | |
+
+`uv run poe setup-<key>` applies it: every statement is `IF NOT EXISTS`, so running it
+again brings an existing stack up to date without touching its data. A new table
+meant for charts gets its `__time` the same way, from the time its rows are about.
+
 ## Testing
 
 Every example ships tests in three tiers, mirroring the framework's own suite:

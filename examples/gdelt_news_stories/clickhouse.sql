@@ -35,6 +35,12 @@ ENGINE = ReplacingMergeTree(last_seen)
 ORDER BY story_id
 SETTINGS non_replicated_deduplication_window = 1000;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when the story first appeared.
+CREATE VIEW IF NOT EXISTS flechtwerk.gdelt_stories_v AS
+SELECT *, first_seen AS __time
+FROM flechtwerk.gdelt_stories FINAL;
+
 -- === Event coverage: gdelt-event-coverage -> current state per GlobalEventID ===
 CREATE TABLE IF NOT EXISTS flechtwerk.gdelt_event_coverage
 (
@@ -57,3 +63,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.gdelt_event_coverage
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY global_event_id
 SETTINGS non_replicated_deduplication_window = 1000;
+
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- its first mention, or when the event was coded while no article has mentioned it yet.
+CREATE VIEW IF NOT EXISTS flechtwerk.gdelt_event_coverage_v AS
+SELECT *, ifNull(first_mention_at, updated_at) AS __time
+FROM flechtwerk.gdelt_event_coverage FINAL;

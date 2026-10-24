@@ -1,0 +1,48 @@
+<clickhouse>
+    <!--
+      A read-only user for FRET Studio (or any other reader that must not write).
+      Studio refuses every user whose getSetting('readonly') is not 2, so the
+      profile pins it: readonly = 2 allows reads and SETting other settings (Studio
+      sends its own with every statement: session_timezone,
+      count_distinct_implementation, ...) but no INSERT, ALTER or DDL, and the
+      user cannot lower it. max_execution_time is held at 60 seconds, the value
+      Studio sends with every statement; a lower CONST would refuse them all.
+
+      The grants are exactly what Studio reads: the tables, views and
+      dictionaries of `flechtwerk`, and three system tables to list them. No
+      url, s3, file or remote, so no table function reaches beyond this server.
+
+      Defined here rather than with CREATE USER, so `docker compose up` gets it on
+      a fresh volume and an existing one alike (ClickHouse reloads users.d without
+      a restart). The password is a fixed local one, like the passwordless
+      `default` next to it: a demo convenience for a server bound to 127.0.0.1.
+    -->
+    <profiles>
+        <studio_ro>
+            <readonly>2</readonly>
+            <max_execution_time>60</max_execution_time>
+            <constraints>
+                <max_execution_time>
+                    <const/>
+                </max_execution_time>
+            </constraints>
+        </studio_ro>
+    </profiles>
+    <users>
+        <studio>
+            <password>studio</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>studio_ro</profile>
+            <quota>default</quota>
+            <grants>
+                <query>GRANT SELECT ON flechtwerk.*</query>
+                <query>GRANT dictGet ON flechtwerk.*</query>
+                <query>GRANT SELECT ON system.tables</query>
+                <query>GRANT SELECT ON system.columns</query>
+                <query>GRANT SELECT ON system.dictionaries</query>
+            </grants>
+        </studio>
+    </users>
+</clickhouse>

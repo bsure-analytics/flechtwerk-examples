@@ -71,6 +71,9 @@ ENGINE = MergeTree
 ORDER BY (region, acquired_at)
 TTL toDateTime(acquired_at) + INTERVAL 30 DAY;
 
+-- `__time` for FRET Studio (see the README): when the satellite acquired the pixel.
+ALTER TABLE flechtwerk.wildfire_detections ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS acquired_at;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.wildfire_detections_mv
 TO flechtwerk.wildfire_detections
 AS SELECT
@@ -103,6 +106,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.wildfire_sweeps
 ENGINE = MergeTree
 ORDER BY (region, sweep_at)
 TTL toDateTime(sweep_at) + INTERVAL 7 DAY;
+
+-- `__time` for FRET Studio (see the README): when the sweep ran.
+ALTER TABLE flechtwerk.wildfire_sweeps ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS sweep_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.wildfire_sweeps_mv
 TO flechtwerk.wildfire_sweeps
@@ -146,6 +152,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.wildfire_status
 ENGINE = MergeTree
 ORDER BY (region, fire_id, as_of)
 TTL toDateTime(as_of) + INTERVAL 30 DAY;
+
+-- `__time` for FRET Studio (see the README): the snapshot's time.
+ALTER TABLE flechtwerk.wildfire_status ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS as_of;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.wildfire_status_mv
 TO flechtwerk.wildfire_status
@@ -201,6 +210,12 @@ AS SELECT
     parseDateTime64BestEffort(message.as_of::String, 3) AS as_of
 FROM flechtwerk.wildfire_status_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when each fire was first seen (active and extinguished alike: filter on `status`).
+CREATE VIEW IF NOT EXISTS flechtwerk.wildfire_active_v AS
+SELECT *, first_seen AS __time
+FROM flechtwerk.wildfire_active FINAL;
+
 -- ============================ events (the fire log, kept) ============================
 
 CREATE TABLE IF NOT EXISTS flechtwerk.wildfire_events_queue
@@ -235,6 +250,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.wildfire_events
 )
 ENGINE = MergeTree
 ORDER BY (occurred_at, region);
+
+-- `__time` for FRET Studio (see the README): when the event occurred.
+ALTER TABLE flechtwerk.wildfire_events ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS occurred_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.wildfire_events_mv
 TO flechtwerk.wildfire_events

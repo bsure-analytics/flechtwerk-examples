@@ -36,6 +36,7 @@ services:
       - ./clickhouse/config:/etc/clickhouse-server/config.d:ro
       - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
       - ./clickhouse/users.d/open-default.xml:/etc/clickhouse-server/users.d/open-default.xml:ro
+      - ./clickhouse/users.d/studio.xml:/etc/clickhouse-server/users.d/studio.xml:ro
       - clickhouse:/var/lib/clickhouse
 
   grafana:

@@ -54,6 +54,20 @@ examples that ship one (adsb ships two — `adsb-flight-tracker` and
 and `f1-season` — plus fermentation), and the shared `observability`
 and `stream-data`.
 
+FRET Studio reads the `flechtwerk` database as the read-only user `studio`
+(`clickhouse/users.d/studio.xml`: `readonly = 2`, `max_execution_time` 60 CONST,
+`SELECT`/`dictGet` on `flechtwerk.*` and `SELECT` on three system tables, nothing
+more). It charts only a table or view with a column named exactly `__time` and reads
+every other one whole, as a lookup. So every table meant for charts gets one, from
+the time its rows are about, in its `clickhouse.sql`: an append-only `MergeTree` an
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS <column>`
+(a `Date` column cast plainly, `ALIAS changed_on`: a `toDateTime64(…, 'UTC')` with a
+time-zone argument stops ClickHouse pruning by it), a `ReplacingMergeTree` a view
+`<table>_v` reading it `FINAL` with `<column> AS __time` and no `__time` on the
+table, so its unmerged duplicates are never charted. Dimension tables (`f1_sessions`,
+`f1_drivers`, the boundaries) and tables without a time stay lookups. The README's
+"Reading it from FRET Studio" lists every table's choice.
+
 Stages run **on the host** (`uv run poe run-<example>`) and connect to
 `localhost` ports; the stack is only the infrastructure.
 

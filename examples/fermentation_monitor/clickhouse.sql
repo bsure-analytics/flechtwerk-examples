@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.fermentation_readings
 ENGINE = MergeTree
 ORDER BY (batch, at);
 
+-- `__time` for FRET Studio (see the README): when the reading was taken.
+ALTER TABLE flechtwerk.fermentation_readings ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS at;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.fermentation_readings_mv
 TO flechtwerk.fermentation_readings
 AS SELECT batch, gravity, temperature, angle, battery, parseDateTime64BestEffort(at, 3) AS at
@@ -63,6 +66,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.fermentation_alerts
 )
 ENGINE = MergeTree
 ORDER BY (batch, at);
+
+-- `__time` for FRET Studio (see the README): when the alert fired.
+ALTER TABLE flechtwerk.fermentation_alerts ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.fermentation_alerts_mv
 TO flechtwerk.fermentation_alerts

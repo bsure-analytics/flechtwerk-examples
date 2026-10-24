@@ -65,6 +65,12 @@ AS SELECT
     message AS payload
 FROM flechtwerk.gtfs_train_delays_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- the feed time of each trip's latest report.
+CREATE VIEW IF NOT EXISTS flechtwerk.gtfs_train_delays_v AS
+SELECT *, feed_ts AS __time
+FROM flechtwerk.gtfs_train_delays FINAL;
+
 -- === History: network delay over time (append-only, pruned after a day) ===
 CREATE TABLE IF NOT EXISTS flechtwerk.gtfs_delay_history
 (
@@ -76,6 +82,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.gtfs_delay_history
 ENGINE = MergeTree
 ORDER BY (feed_ts, trip_id)
 TTL toDateTime(feed_ts) + INTERVAL 1 DAY;
+
+-- `__time` for FRET Studio (see the README): the feed time of the report.
+ALTER TABLE flechtwerk.gtfs_delay_history ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS feed_ts;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.gtfs_delay_history_mv
 TO flechtwerk.gtfs_delay_history

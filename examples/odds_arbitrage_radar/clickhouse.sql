@@ -56,6 +56,9 @@ ENGINE = MergeTree
 ORDER BY (pair_key, venue, fetched_at)
 TTL toDateTime(fetched_at) + INTERVAL 30 DAY;
 
+-- `__time` for FRET Studio (see the README): when the quote was fetched.
+ALTER TABLE flechtwerk.odds_quotes ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS fetched_at;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.odds_quotes_mv
 TO flechtwerk.odds_quotes
 AS SELECT
@@ -107,6 +110,9 @@ ENGINE = MergeTree
 ORDER BY (pair_key, direction, computed_at)
 TTL toDateTime(computed_at) + INTERVAL 30 DAY;
 
+-- `__time` for FRET Studio (see the README): when the margin was computed.
+ALTER TABLE flechtwerk.odds_margins ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS computed_at;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.odds_margins_mv
 TO flechtwerk.odds_margins
 AS SELECT
@@ -157,6 +163,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.odds_signals
 )
 ENGINE = MergeTree
 ORDER BY (computed_at, pair_key);
+
+-- `__time` for FRET Studio (see the README): when the signal was computed.
+ALTER TABLE flechtwerk.odds_signals ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS computed_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.odds_signals_mv
 TO flechtwerk.odds_signals

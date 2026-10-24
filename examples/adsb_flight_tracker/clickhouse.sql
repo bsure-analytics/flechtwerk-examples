@@ -101,6 +101,13 @@ AS SELECT
     message AS payload
 FROM flechtwerk.adsb_aircraft_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- each aircraft as last polled.
+CREATE VIEW IF NOT EXISTS flechtwerk.adsb_aircraft_v AS
+SELECT *, polled_at AS __time
+FROM flechtwerk.adsb_aircraft FINAL
+WHERE is_deleted = 0;
+
 -- === Derived events: adsb-events -> an append-only aviation-events log ===
 
 -- Emergencies, rapid descents, going-dark, and near-miss conflicts. A log, not a
@@ -131,6 +138,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.adsb_events
 )
 ENGINE = MergeTree
 ORDER BY (at, hex);
+
+-- `__time` for FRET Studio (see the README): when the event happened.
+ALTER TABLE flechtwerk.adsb_events ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.adsb_events_mv
 TO flechtwerk.adsb_events

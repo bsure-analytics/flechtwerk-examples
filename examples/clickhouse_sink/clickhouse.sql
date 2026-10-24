@@ -22,3 +22,6 @@ CREATE TABLE IF NOT EXISTS flechtwerk.adsb_positions
 ENGINE = MergeTree
 ORDER BY (hex, polled_at)
 SETTINGS non_replicated_deduplication_window = 1000;
+
+-- `__time` for FRET Studio (see the README): when the position was polled.
+ALTER TABLE flechtwerk.adsb_positions ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS polled_at;

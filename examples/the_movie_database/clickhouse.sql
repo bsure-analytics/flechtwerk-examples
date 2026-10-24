@@ -63,6 +63,10 @@ ENGINE = MergeTree
 ORDER BY (feed, changed_on, id)
 TTL toDateTime(discovered_at) + INTERVAL 180 DAY;
 
+-- `__time` for FRET Studio (see the README): the day TMDB lists the change for, at midnight UTC
+-- (`discovered_at` is when the extractor saw it).
+ALTER TABLE flechtwerk.tmdb_changes ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS changed_on;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.tmdb_changes_mv
 TO flechtwerk.tmdb_changes
 AS SELECT
@@ -119,6 +123,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_movies
 ENGINE = MergeTree
 ORDER BY (id, version_at)
 TTL toDateTime(version_at) + INTERVAL 180 DAY;
+
+-- `__time` for FRET Studio (see the README): when the version was taken.
+ALTER TABLE flechtwerk.tmdb_movies ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS version_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.tmdb_movies_mv
 TO flechtwerk.tmdb_movies
@@ -213,6 +220,12 @@ AS SELECT
     message AS payload
 FROM flechtwerk.tmdb_movies_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when each title's latest version was taken.
+CREATE VIEW IF NOT EXISTS flechtwerk.tmdb_movies_current_v AS
+SELECT *, version_at AS __time
+FROM flechtwerk.tmdb_movies_current FINAL;
+
 -- ========================== TV series ==========================
 
 CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_tv_queue
@@ -262,6 +275,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_tv
 ENGINE = MergeTree
 ORDER BY (id, version_at)
 TTL toDateTime(version_at) + INTERVAL 180 DAY;
+
+-- `__time` for FRET Studio (see the README): when the version was taken.
+ALTER TABLE flechtwerk.tmdb_tv ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS version_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.tmdb_tv_mv
 TO flechtwerk.tmdb_tv
@@ -365,6 +381,12 @@ AS SELECT
     message AS payload
 FROM flechtwerk.tmdb_tv_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when each series' latest version was taken.
+CREATE VIEW IF NOT EXISTS flechtwerk.tmdb_tv_current_v AS
+SELECT *, version_at AS __time
+FROM flechtwerk.tmdb_tv_current FINAL;
+
 -- ========================== people ==========================
 
 CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_people_queue
@@ -401,6 +423,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_people
 ENGINE = MergeTree
 ORDER BY (id, version_at)
 TTL toDateTime(version_at) + INTERVAL 180 DAY;
+
+-- `__time` for FRET Studio (see the README): when the version was taken.
+ALTER TABLE flechtwerk.tmdb_people ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS version_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.tmdb_people_mv
 TO flechtwerk.tmdb_people
@@ -465,6 +490,12 @@ AS SELECT
     message AS payload
 FROM flechtwerk.tmdb_people_queue;
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when each person's latest version was taken.
+CREATE VIEW IF NOT EXISTS flechtwerk.tmdb_people_current_v AS
+SELECT *, version_at AS __time
+FROM flechtwerk.tmdb_people_current FINAL;
+
 -- ========================== credits ==========================
 
 CREATE TABLE IF NOT EXISTS flechtwerk.tmdb_credits_queue
@@ -522,3 +553,9 @@ AS SELECT
     message.version::UInt32 AS version,
     parseDateTime64BestEffort(message.version_at::String, 3) AS version_at
 FROM flechtwerk.tmdb_credits_queue;
+
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when the title version that last carried each credit was taken.
+CREATE VIEW IF NOT EXISTS flechtwerk.tmdb_credits_v AS
+SELECT *, version_at AS __time
+FROM flechtwerk.tmdb_credits FINAL;

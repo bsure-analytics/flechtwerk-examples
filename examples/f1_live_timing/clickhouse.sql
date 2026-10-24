@@ -96,6 +96,9 @@ ENGINE = MergeTree
 PARTITION BY session_key
 ORDER BY (session_key, racing_number, event_time);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_standings ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_standings_mv
 TO flechtwerk.f1_standings
 AS SELECT
@@ -154,6 +157,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_weather
 ENGINE = MergeTree
 ORDER BY (session_key, event_time);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_weather ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_weather_mv
 TO flechtwerk.f1_weather
 AS SELECT
@@ -182,6 +188,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_clock
 ENGINE = MergeTree
 ORDER BY (session_key, event_time);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_clock ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_clock_mv
 TO flechtwerk.f1_clock
 AS SELECT
@@ -202,6 +211,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_heartbeats
 )
 ENGINE = MergeTree
 ORDER BY (session_key, event_time);
+
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_heartbeats ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_heartbeats_mv
 TO flechtwerk.f1_heartbeats
@@ -335,6 +347,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_laps
 ENGINE = MergeTree
 ORDER BY (session_key, racing_number, lap);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_laps ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_laps_mv
 TO flechtwerk.f1_laps
 AS SELECT
@@ -370,6 +385,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_pit_stops
 )
 ENGINE = MergeTree
 ORDER BY (session_key, racing_number, event_time);
+
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_pit_stops ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_pit_stops_mv
 TO flechtwerk.f1_pit_stops
@@ -413,6 +431,12 @@ AS SELECT
 FROM flechtwerk.f1_events_queue
 WHERE message.kind::String = 'track_period';
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- when each flag period began.
+CREATE VIEW IF NOT EXISTS flechtwerk.f1_track_status_v AS
+SELECT *, started_at AS __time
+FROM flechtwerk.f1_track_status FINAL;
+
 -- === Race control: the ticker (flags, penalties, DRS, safety cars) ===
 CREATE TABLE IF NOT EXISTS flechtwerk.f1_race_control
 (
@@ -429,6 +453,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_race_control
 )
 ENGINE = MergeTree
 ORDER BY (session_key, event_time);
+
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_race_control ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_race_control_mv
 TO flechtwerk.f1_race_control
@@ -457,6 +484,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_overtakes
 ENGINE = MergeTree
 ORDER BY (session_key, event_time);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_overtakes ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_overtakes_mv
 TO flechtwerk.f1_overtakes
 AS SELECT
@@ -481,6 +511,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_championship
 )
 ENGINE = MergeTree
 ORDER BY (session_key, entity_type, entity_id, event_time);
+
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_championship ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_championship_mv
 TO flechtwerk.f1_championship
@@ -528,6 +561,9 @@ ENGINE = MergeTree
 PARTITION BY session_key
 ORDER BY (session_key, racing_number, event_time);
 
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_car_telemetry ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_car_telemetry_mv
 TO flechtwerk.f1_car_telemetry
 AS SELECT
@@ -556,6 +592,9 @@ CREATE TABLE IF NOT EXISTS flechtwerk.f1_positions
 ENGINE = MergeTree
 PARTITION BY session_key
 ORDER BY (session_key, racing_number, event_time);
+
+-- `__time` for FRET Studio (see the README): the tape's time of the record.
+ALTER TABLE flechtwerk.f1_positions ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS event_time;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.f1_positions_mv
 TO flechtwerk.f1_positions

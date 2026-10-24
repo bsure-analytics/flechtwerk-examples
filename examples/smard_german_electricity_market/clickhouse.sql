@@ -69,6 +69,12 @@ AS SELECT
 FROM flechtwerk.smard_observations_queue
 WHERE message.kind::String = 'observation';
 
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- the interval each value is for, at its current best value.
+CREATE VIEW IF NOT EXISTS flechtwerk.smard_observations_v AS
+SELECT *, ts AS __time
+FROM flechtwerk.smard_observations FINAL;
+
 -- === Corrections feed: append-only audit of every restatement (7-day TTL) ===
 CREATE TABLE IF NOT EXISTS flechtwerk.smard_revisions
 (
@@ -82,6 +88,10 @@ CREATE TABLE IF NOT EXISTS flechtwerk.smard_revisions
 ENGINE = MergeTree
 ORDER BY (fetched_at, series_key)
 TTL toDateTime(fetched_at) + INTERVAL 7 DAY;
+
+-- `__time` for FRET Studio (see the README): when the restatement was fetched (`ts` is the
+-- interval it restates).
+ALTER TABLE flechtwerk.smard_revisions ADD COLUMN IF NOT EXISTS __time DateTime64(3, 'UTC') ALIAS fetched_at;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS flechtwerk.smard_revisions_mv
 TO flechtwerk.smard_revisions
@@ -145,3 +155,9 @@ AS SELECT
     parseDateTime64BestEffort(message.updated_at::String, 3) AS updated_at,
     message AS payload
 FROM flechtwerk.smard_mix_queue;
+
+-- FRET Studio reads the latest version per key through this view (see the README), with `__time`
+-- the interval, at its settled or latest preliminary mix.
+CREATE VIEW IF NOT EXISTS flechtwerk.smard_mix_v AS
+SELECT *, ts AS __time
+FROM flechtwerk.smard_mix FINAL;
