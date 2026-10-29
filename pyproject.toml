@@ -5,7 +5,7 @@ authors = [
 dependencies = [
     # The `secrets` extra installs `flechtctl` (the keyring and the `ENCRYPTED` codec) — used
     # ONLY by the_movie_database, whose API credential rides encrypted on its config topic.
-    "flechtwerk[mqtt,secrets]==0.17.0",
+    "flechtwerk[mqtt,secrets]==0.17.1",
     # GTFS-Realtime protobuf bindings — used ONLY at the edge of the gtfs_german_rail_delays
     # ingest stage (parse the .pb feed into plain dicts); the framework never sees protobuf,
     # JSON stays the only Kafka wire codec. Brings `protobuf` transitively.
