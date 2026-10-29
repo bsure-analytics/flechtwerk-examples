@@ -62,6 +62,7 @@ scenario under `examples/`:
 | 9 | [`wildfire_watch`](examples/wildfire_watch) | **spatiotemporal sessionization + bounded event-time dedupe**: NASA FIRMS satellite fire detections clustered into persistent fire objects in keyed state (ignition → growth → merge → extinction by event-time timeout, with `sweep` markers as the transformer's only clock), and a pruned, hard-capped seen-set standing in for a cursor the source doesn't have — a live wildfire map from VIIRS, regional or planet-wide (`request-wildfire world` tiles the globe adaptively into a few hundred ordinary regions). Free NASA MAP_KEY required (the repo's first), stored **encrypted on its own config topic** (`flechtwerk[secrets]`) | `wildfire` |
 | 10 | [`f1_live_timing`](examples/f1_live_timing) | **an append-only file as an exactly-once source**: Formula 1's public live-timing archive records each session as line-framed `.jsonStream` files, so a **per-feed byte offset** is the resume cursor — making backfill, live tailing, and crash recovery one code path, and making downtime cost timeliness but never data. Plus **delta accumulation into a materialized view** (the feed sends partial patches, never a leaderboard; the board folds them into keyed state and emits wide snapshots only when something changed) and a **broadcast SCD join** (a 585-byte, 12-record flag feed tags every lap). The only *deterministic, replayable* example here — run it on a quiet Tuesday and get the Hungarian Grand Prix, byte for byte — and its dashboards make live, scrub, and animated replay one as-of query with no timestamp ever rewritten. Keyless public data, read-only, unofficial endpoint | `f1` |
 | 11 | [`the_movie_database`](examples/the_movie_database) | **reference data as a change stream + the first encrypted credential on a config topic**: a local copy of The Movie Database — movies, TV series, people and the credits linking them — kept current from TMDB's daily change feeds, one calendar day per window against a 500-page cap, backed up raw by an extractor that never reads the pages and split into per-id changes downstream with a seen-set for the open day, and a **content-hash version gate** that turns "this id changed" into versioned rows only when the content really moved (popularity included, so the history is the popularity timeline); flat per-version and per-credit topics land in ClickHouse for ad-hoc analysis. The free TMDB token rides **encrypted on the config topic** (`flechtwerk[secrets]`, a keyring made with `flechtctl`), the stages decrypt it on read, and the secret counters on the metrics endpoint prove it. Free TMDB token required, non-commercial use | `tmdb` |
+| 12 | [`glucose_monitor`](examples/glucose_monitor) | **a stream made from a repeating snapshot, behind a sign-in**: a FreeStyle Libre 3's glucose readings via LibreLinkUp, the follower side of Abbott's cloud — an extractor that backs up each followed patient's last-12-hours window every minute with no cursor (the source has none) and keeps its LibreLinkUp session as state, **encrypted** on the changelog like every other secret, and a transformer whose 24-hour event-time **seen-set** turns the repeats into one record per new reading, catching history points the source fills in late. The follower's email and password ride **encrypted on the config topic**, checked by one sign-in before they are stored; time in range, GMI and a daily profile by local hour on the dashboard. Personal health data — keep the stack local; not a medical device. Unofficial API, untested against a live account yet | `glucose` |
 
 Each example is self-contained under its own directory with its own README.
 
@@ -129,7 +130,9 @@ race control, weather, speed traps, a track map), **F1 Strategy** (stint timelin
 tyre degradation, position by lap, rolling pace, the pit-loss ledger) and **F1
 Season** (every session on tape with one click to open or replay it, championship
 points, podiums, season tallies) — which share one as-of cursor so that live,
-scrub, and animated replay are the same query.
+scrub, and animated replay are the same query — and **Glucose Monitor** (the reading
+now with its trend and age, mean, GMI, variability, time in the five consensus
+ranges, a 14-day daily profile by local hour, and one row per day).
 
 Stages run on the host and expose Prometheus metrics on a per-example port
 (`9101` ADS-B ingest + `9105` ADS-B enrich + `9106` ADS-B conflict + `9107` ADS-B
@@ -138,7 +141,8 @@ bridge, `9108` GDELT ingest + `9109` GDELT coverage + `9110` GDELT stories + `91
 GDELT sink, `9112` GTFS ingest + `9113` GTFS delays + `9114` GTFS loader, `9115`
 SMARD ingest + `9116` SMARD mix, `9117` odds Polymarket + `9118` odds Kalshi + `9119`
 odds radar, `9120` wildfire ingest + `9121` wildfire tracker, `9122` F1 ingest + `9123`
-F1 timing, `9124` TMDB changes + `9125` TMDB split + `9126` TMDB catalog; the chaos harness runs metrics-off);
+F1 timing, `9124` TMDB changes + `9125` TMDB split + `9126` TMDB catalog, `9127` glucose ingest +
+`9128` glucose readings; the chaos harness runs metrics-off);
 Prometheus reaches them via `host.docker.internal`, so a target reads "down"
 until you start its example.
 
@@ -188,6 +192,7 @@ example's `clickhouse.sql` gives its tables one of two kinds:
 | Wildfire | `wildfire_detections` (`acquired_at`), `wildfire_sweeps` (`sweep_at`), `wildfire_status` (`as_of`), `wildfire_events` (`occurred_at`) | `wildfire_active_v` (`first_seen`; extinguished fires too, filter on `status`) | |
 | F1 | the eleven append-only tables (`event_time`, the tape's) | `f1_track_status_v` (`started_at`) | `f1_sessions`, `f1_drivers` (the dimensions, read whole) |
 | TMDB | `tmdb_changes` (`changed_on`, at midnight UTC), `tmdb_movies`, `tmdb_tv`, `tmdb_people` (`version_at`) | `tmdb_movies_current_v`, `tmdb_tv_current_v`, `tmdb_people_current_v`, `tmdb_credits_v` (`version_at`) | |
+| Glucose | `glucose_readings` (`measured_at`, the sensor's UTC) | | |
 
 `uv run poe setup-<key>` applies it: every statement is `IF NOT EXISTS`, so running it
 again brings an existing stack up to date without touching its data. A new table

@@ -1,0 +1,242 @@
+{
+  "status": 0,
+  "data": {
+    "connection": {
+      "id": "c0ffee00-0000-4000-8000-000000000001",
+      "patientId": "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+      "country": "DE",
+      "status": 2,
+      "firstName": "Erika",
+      "lastName": "Mustermann",
+      "targetLow": 70,
+      "targetHigh": 180,
+      "uom": 1,
+      "sensor": {
+        "deviceId": "",
+        "sn": "0A1B2C3D4E",
+        "a": 1761600000,
+        "w": 60,
+        "pt": 4,
+        "s": false,
+        "lj": false
+      },
+      "alarmRules": {
+        "c": true,
+        "h": {
+          "th": 250,
+          "thmm": 13.9,
+          "d": 1440,
+          "f": 0.1
+        },
+        "f": {
+          "th": 55,
+          "thmm": 3,
+          "d": 30,
+          "tl": 10,
+          "tlmm": 0.6
+        },
+        "l": {
+          "th": 70,
+          "thmm": 3.9,
+          "d": 1440,
+          "tl": 10,
+          "tlmm": 0.6
+        },
+        "nd": {
+          "i": 20,
+          "r": 5,
+          "l": 6
+        },
+        "p": 5,
+        "r": 5,
+        "std": {}
+      },
+      "glucoseMeasurement": {
+        "FactoryTimestamp": "10/29/2026 7:13:41 AM",
+        "Timestamp": "10/29/2026 8:13:41 AM",
+        "type": 1,
+        "ValueInMgPerDl": 203,
+        "TrendArrow": 4,
+        "TrendMessage": null,
+        "MeasurementColor": 2,
+        "GlucoseUnits": 1,
+        "Value": 203,
+        "isHigh": false,
+        "isLow": false
+      },
+      "glucoseItem": {
+        "FactoryTimestamp": "10/29/2026 7:13:41 AM",
+        "Timestamp": "10/29/2026 8:13:41 AM",
+        "type": 1,
+        "ValueInMgPerDl": 203,
+        "TrendArrow": 4,
+        "TrendMessage": null,
+        "MeasurementColor": 2,
+        "GlucoseUnits": 1,
+        "Value": 203,
+        "isHigh": false,
+        "isLow": false
+      },
+      "glucoseAlarm": null,
+      "patientDevice": {
+        "did": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "dtid": 40068,
+        "v": "3.6.1",
+        "ll": 70,
+        "hl": 250,
+        "u": 1761600000,
+        "fixedLowAlarmValues": {
+          "mgdl": 60,
+          "mmoll": 3.3
+        },
+        "alarms": true,
+        "fixedLowThreshold": 0
+      },
+      "created": 1761600000
+    },
+    "activeSensors": [
+      {
+        "sensor": {
+          "deviceId": "",
+          "sn": "0A1B2C3D4E",
+          "a": 1761600000,
+          "w": 60,
+          "pt": 4,
+          "s": false,
+          "lj": false
+        },
+        "device": {
+          "did": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "dtid": 40068,
+          "v": "3.6.1",
+          "ll": 70,
+          "hl": 250,
+          "u": 1761600000,
+          "fixedLowAlarmValues": {
+            "mgdl": 60,
+            "mmoll": 3.3
+          },
+          "alarms": true,
+          "fixedLowThreshold": 0
+        }
+      }
+    ],
+    "graphData": [
+      {
+        "FactoryTimestamp": "10/29/2026 4:45:07 AM",
+        "Timestamp": "10/29/2026 5:45:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 104,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 104,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 5:00:07 AM",
+        "Timestamp": "10/29/2026 6:00:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 98,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 98,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 5:15:07 AM",
+        "Timestamp": "10/29/2026 6:15:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 93,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 93,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 5:30:07 AM",
+        "Timestamp": "10/29/2026 6:30:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 97,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 97,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 5:45:07 AM",
+        "Timestamp": "10/29/2026 6:45:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 112,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 112,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 6:00:07 AM",
+        "Timestamp": "10/29/2026 7:00:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 131,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 131,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 6:15:07 AM",
+        "Timestamp": "10/29/2026 7:15:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 149,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 149,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 6:30:07 AM",
+        "Timestamp": "10/29/2026 7:30:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 166,
+        "MeasurementColor": 1,
+        "GlucoseUnits": 1,
+        "Value": 166,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 6:45:07 AM",
+        "Timestamp": "10/29/2026 7:45:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 184,
+        "MeasurementColor": 2,
+        "GlucoseUnits": 1,
+        "Value": 184,
+        "isHigh": false,
+        "isLow": false
+      },
+      {
+        "FactoryTimestamp": "10/29/2026 7:00:07 AM",
+        "Timestamp": "10/29/2026 8:00:07 AM",
+        "type": 0,
+        "ValueInMgPerDl": 197,
+        "MeasurementColor": 2,
+        "GlucoseUnits": 1,
+        "Value": 197,
+        "isHigh": false,
+        "isLow": false
+      }
+    ]
+  },
+  "ticket": {
+    "token": "[RENEWED-TICKET]",
+    "expires": 1793136000,
+    "duration": 15552000000
+  }
+}
