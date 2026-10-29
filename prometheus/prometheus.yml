@@ -91,3 +91,9 @@ scrape_configs:
         labels: { example: the_movie_database, stage: transformer }
       - targets: ["host.docker.internal:9126"]
         labels: { example: the_movie_database, stage: transformer }
+      # glucose_monitor runs two host stages under one example label: the LibreLinkUp backup
+      # extractor (9127) and the window-deduping readings transformer (9128).
+      - targets: ["host.docker.internal:9127"]
+        labels: { example: glucose_monitor, stage: extractor }
+      - targets: ["host.docker.internal:9128"]
+        labels: { example: glucose_monitor, stage: transformer }

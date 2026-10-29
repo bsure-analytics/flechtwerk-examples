@@ -51,7 +51,7 @@ scrapes host-run stages via `host.docker.internal:<port>`. Grafana provisions
 datasources + dashboards under `grafana/`: a per-example dashboard for the
 examples that ship one (adsb ships two — `adsb-flight-tracker` and
 `adsb-aviation-events` — and f1 ships three — `f1-live-timing`, `f1-strategy`
-and `f1-season` — plus fermentation), and the shared `observability`
+and `f1-season` — plus fermentation and glucose), and the shared `observability`
 and `stream-data`.
 
 FRET Studio reads the `flechtwerk` database as the read-only user `studio`
@@ -127,7 +127,7 @@ names a leader before the Kafka broker finishes becoming one, so the first produ
 retries once; metadata-level waiting can't close that window).
 
 **Naming**: every example has one **key** — its Kafka prefix (`adsb`, `gdelt`,
-`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`, `f1`, `tmdb`; the sink's ops key is `sink`) — and one
+`gtfs`, `smard`, `fermentation`, `chaos`, `odds`, `wildfire`, `f1`, `tmdb`, `glucose`; the sink's ops key is `sink`) — and one
 **display title** (`ADS-B Flight Tracker`, `GTFS German Rail Delays`, …). The two are
 **not independent**: the key is the *first token of the folder*, i.e. of
 snake_case(title) — `odds_arbitrage_radar` → `odds`, `wildfire_watch` → `wildfire`. Every
@@ -154,22 +154,24 @@ An extractor
 takes one config record per poll target, keyed on a compacted config topic (any producer,
 Kafbat included, works too); a transformer consumes a partitioned input topic instead.
 
-The five examples with load-bearing design rationale carry it in their own
+The six examples with load-bearing design rationale carry it in their own
 `examples/<name>/CLAUDE.md`, which loads only when you work under that directory:
 `adsb_flight_tracker` (staged polygon-dictionary reverse geocoding),
 `odds_arbitrage_radar` (N-source fan-in), `wildfire_watch` (spatiotemporal
 sessionization, the first example needing an API key), `f1_live_timing`
-(the append-only-file cursor) and `the_movie_database` (reference data as a change
-stream, the credential encrypted on the config topic).
+(the append-only-file cursor), `the_movie_database` (reference data as a change
+stream, the credential encrypted on the config topic) and `glucose_monitor` (a
+repeating snapshot made a stream by a seen-set, a sign-in session kept as encrypted
+state, and an unofficial API not yet verified live).
 
 ## Conventions carried from the framework (keep these)
 
 - **No environment-variable magic inside stages.** All configuration is injected
   by the caller (`Flechtwerk.of(...)`, or a config topic record). `setup.py` /
-  `__main__.py` are the ops callers and may hold demo constants. Three `__main__.py`s
+  `__main__.py` are the ops callers and may hold demo constants. Four `__main__.py`s
   deliberately read the environment *as the ops caller* and inject what they find:
   `chaos_harness` (an env-driven `application_id`, to prove transactional fencing), and
-  `wildfire_watch` and `the_movie_database` (the keyring *path*, `FLECHTWERK_KEYRING`, read by
+  `wildfire_watch`, `the_movie_database` and `glucose_monitor` (the keyring *path*, `FLECHTWERK_KEYRING`, read by
   `examples/_setup.load_keyring` and injected as `_runner.run(keyring=…)`). The rule holds
   where it matters — no stage touches `os.environ`, and since no credential is a constructor
   argument any more, every stage module has its module-level `stage` singleton.
@@ -179,14 +181,23 @@ stream, the credential encrypted on the config topic).
   through `_runner.run(keyring=…)`. Key material never enters a stage module or a topic in the
   clear. The config store is one namespace that the extractor polls entirely, which leaves two
   shapes, and the repo shows both: **on every target record** (`the_movie_database` — the token is an
-  attribute of each of three feed records, so there is nothing to skip) or **one record on a
+  attribute of each of three feed records, so there is nothing to skip; `glucose_monitor` — a
+  LibreLinkUp email *and* password on each follower-account record, checked by one sign-in before
+  `request-glucose` stores them) or **one record on a
   topic of its own** (`wildfire_watch` — the MAP_KEY on `wildfire-credentials`, read with
   `self.configs.get("firms")`; the extractor's `poll`/`enrich_config` skip that entry, `firms`
   is a reserved region slug, and requesting one of ~350 world-watch regions never touches the
   secret). Pick the second when targets are many or written often. A secret that is part of a
   URL (FIRMS' is) also means quieting httpx's INFO request log in the ops caller. The secret counters (`flechtwerk_secret_decrypts_total`,
-  `flechtwerk_keyring_keys_loaded`) on the metrics endpoint are the proof it is in use. Host
-  metrics ports `9124`/`9125`/`9126` are the TMDB stages' (changes, split, catalog).
+  `flechtwerk_keyring_keys_loaded`) on the metrics endpoint are the proof it is in use.
+  **Any secret at rest is encrypted** — not only a credential on a config topic but one a stage
+  derives and keeps: `glucose_monitor`'s LibreLinkUp session (a bearer token plus an unsalted
+  digest of the credentials) is `ENCRYPTED` *state*, one `flenc:jwe:…` token on the changelog,
+  and a secret inside a source's response (LibreLinkUp's renewed ticket) is dropped before the
+  backup. Encryption is randomized and the runner compares *raw* state, so yield such a `State`
+  only when the secret changed — re-encrypting an unchanged one is a changelog write every poll. Host
+  metrics ports `9124`/`9125`/`9126` are the TMDB stages' (changes, split, catalog), `9127`/`9128`
+  the glucose stages' (ingest, readings).
 - **`metrics_labels` must be non-empty** when `metrics_port > 0`: the framework's
   `PrometheusObserver` calls `.labels(**metrics_labels)` on every metric, so `{}`
   crashes at startup. Pass at least one label (e.g. `{"client_id": client_id}`).
