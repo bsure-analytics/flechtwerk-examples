@@ -24,7 +24,7 @@ services:
       start_period: 5s
       test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null 2>&1 || exit 1"]
       timeout: 5s
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:26.8
     ports:
       - "127.0.0.1:8123:8123" # HTTP (clickhouse-connect from the host)
       - "127.0.0.1:9000:9000" # native (clickhouse-client, the Grafana datasource)
@@ -65,7 +65,7 @@ services:
       start_period: 20s
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
       timeout: 5s
-    image: grafana/grafana:13.1.1
+    image: grafana/grafana:13.3.0
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -99,7 +99,7 @@ services:
       timeout: 10s
       retries: 20
       start_period: 10s
-    image: apache/kafka:4.3.1
+    image: apache/kafka:4.4.0
     ports:
       - "127.0.0.1:9092:9092" # EXTERNAL listener for host-run examples
     volumes:
@@ -117,7 +117,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    image: apache/kafka:4.3.1
+    image: apache/kafka:4.4.0
     command:
       - /opt/kafka/bin/kafka-features.sh
       - --bootstrap-server
@@ -128,7 +128,7 @@ services:
 
   kafka-init:
     command: chown -R 1000:1000 /var/lib/kafka/data
-    image: alpine:3.23
+    image: alpine:3.24
     user: root
     volumes:
       - kafka:/var/lib/kafka/data
@@ -177,7 +177,7 @@ services:
       # Docker Desktop provides this name already; the mapping makes it work
       # on Linux too.
       - "host.docker.internal:host-gateway"
-    image: prom/prometheus:v3.13.1
+    image: prom/prometheus:v3.16.0
     ports:
       - "127.0.0.1:9090:9090"
     volumes:

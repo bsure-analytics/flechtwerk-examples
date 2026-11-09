@@ -44,10 +44,16 @@ def kafka_bootstrap() -> str:
     if not _docker_available():
         pytest.skip("Docker not available — skipping integration tests")
 
-    from testcontainers.kafka import KafkaContainer
+    from testcontainers.community.kafka import KafkaContainer
 
+    # Pinned like every other image here, not testcontainers' default (Kafka
+    # 3.6 on ZooKeeper). KafkaContainer starts the broker through Confluent's
+    # entrypoint scripts, so it needs a cp-kafka image rather than apache/kafka:
+    # Confluent Platform 8.4 ships Kafka 4.4, the docker-compose stack's broker.
+    # Kafka 4 has no ZooKeeper, hence KRaft.
     kafka = (
-        KafkaContainer()
+        KafkaContainer("confluentinc/cp-kafka:8.4.0")
+        .with_kraft()
         .with_env("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
         .with_env("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
         .with_env("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
@@ -69,10 +75,10 @@ def clickhouse() -> dict[str, str]:
     if not _docker_available():
         pytest.skip("Docker not available — skipping integration tests")
 
-    from testcontainers.clickhouse import ClickHouseContainer
+    from testcontainers.community.clickhouse import ClickHouseContainer
 
     container = ClickHouseContainer(
-        "clickhouse/clickhouse-server:25.8",
+        "clickhouse/clickhouse-server:26.8",
         username="flechtwerk",
         password="flechtwerk",
         dbname="flechtwerk",
@@ -111,7 +117,7 @@ def mosquitto() -> dict[str, object]:
     import shlex
 
     from testcontainers.core.container import DockerContainer
-    from testcontainers.mqtt import MosquittoContainer
+    from testcontainers.community.mqtt import MosquittoContainer
 
     container = MosquittoContainer("eclipse-mosquitto:2.1.2-alpine")
     container.with_exposed_ports(MosquittoContainer.MQTT_PORT)

@@ -41,7 +41,7 @@ dev = [
     "poethepoet>=0.29",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.24",
-    "testcontainers[clickhouse,kafka,mqtt]>=4.8",
+    "testcontainers[clickhouse,kafka,mqtt]>=4.15",  # the testcontainers.community.* import paths
 ]
 
 [tool.uv]
@@ -346,8 +346,8 @@ filterwarnings = [
     # testcontainers modules use their own deprecated @wait_container_is_ready
     # / wait_for_logs(...) helpers internally — not something we can fix from
     # the call site. Mute only those specific module-scoped warnings.
-    "ignore::DeprecationWarning:testcontainers.mqtt",
-    "ignore::DeprecationWarning:testcontainers.clickhouse",
+    "ignore::DeprecationWarning:testcontainers.community.mqtt",
+    "ignore::DeprecationWarning:testcontainers.community.clickhouse",
 ]
 markers = [
     "integration: tests that require Docker-based testcontainers (Kafka, Mosquitto, ClickHouse; run with `-m integration`)",

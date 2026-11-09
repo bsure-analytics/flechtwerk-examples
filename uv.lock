@@ -328,7 +328,7 @@ dev = [
     { name = "poethepoet", specifier = ">=0.29" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "testcontainers", extras = ["clickhouse", "kafka", "mqtt"], specifier = ">=4.8" },
+    { name = "testcontainers", extras = ["clickhouse", "kafka", "mqtt"], specifier = ">=4.15" },
 ]
 
 [[package]]
