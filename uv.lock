@@ -259,29 +259,28 @@ wheels = [
 
 [[package]]
 name = "flechtctl"
-version = "0.18.1"
+version = "0.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "joserfc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d2/1e/14fbbecacded9b032a150823f97532a6b42b13b9a8c2ba14685246fe360b/flechtctl-0.18.1.tar.gz", hash = "sha256:cbbf1e9a40bf6d8c29194c09fcae0e3c8056ec4ee650de9bf576bd2a2fe7f781", size = 35089, upload-time = "2026-11-08T23:31:36.495Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/a6/51c15241bc8bd2f4bbbbfb6e8c08e254db8891789f701324082d9591f7a2/flechtctl-0.19.0.tar.gz", hash = "sha256:842dd31a2b669c175e23b3ffe8f7d78e2f7fe41159d0c6bcdd4346d842ce5807", size = 35094, upload-time = "2026-11-12T21:46:36.299Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/23/2620b561646725a2c079a85f17b88b0d4a29d37282b3ee218666ac93b425/flechtctl-0.18.1-py3-none-any.whl", hash = "sha256:631def88497c54368e72762f33c94114bcb95a83904341fae6097ecccbd580dc", size = 24760, upload-time = "2026-11-08T23:31:34.188Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/fc/d8a9817c15ef81a185dee57abf991b628cc5d254b7d10dc3e7894eeb0229/flechtctl-0.19.0-py3-none-any.whl", hash = "sha256:150b280335d59e54ccaff1c8f7f43d34129ecdae2b16af3cf255ca20871689c6", size = 24759, upload-time = "2026-11-12T21:46:34.015Z" },
 ]
 
 [[package]]
 name = "flechtwerk"
-version = "0.18.1"
+version = "0.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiokafka" },
     { name = "prometheus-client" },
     { name = "reactor-di" },
-    { name = "rocksdict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/a0/2ce26e95377353a67be27156acf5d1e5ffb38cec77f6b41722c102e75cda/flechtwerk-0.18.1.tar.gz", hash = "sha256:69b431c86e26675a00216495c253b8dbeda021c71c0905d9cd9c0acbc4358048", size = 799490, upload-time = "2026-11-08T23:31:37.111Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/a5/8c2f9f12bae003b491b5bedcf965f05fb5ea1c9e221c20531422c87d23b9/flechtwerk-0.19.0.tar.gz", hash = "sha256:fc43e257db6a49768489678213f1514f0197f7aa12e8f6372d5240d8bfc7a0c9", size = 798630, upload-time = "2026-11-12T21:46:37.315Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dd/f9/cf14e1e606172374ca5bf54ab9a8c44103ea7b22b7738a8fad7ec3623d1d/flechtwerk-0.18.1-py3-none-any.whl", hash = "sha256:f9620899849f96d6f02ea01b56a8b8db74d689137e1d3b5a91b8027e8086a91c", size = 121345, upload-time = "2026-11-08T23:31:35.265Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/30/d9dfaf068d6775797b52d8eeef0bbc9185b643b6dfa9294c3fd4a8bcc465/flechtwerk-0.19.0-py3-none-any.whl", hash = "sha256:1bd2e4a7bc6b09281ec580d666a2d6cb95ad91ff5119a16e400e098613d36f14", size = 121510, upload-time = "2026-11-12T21:46:34.995Z" },
 ]
 
 [package.optional-dependencies]
@@ -315,7 +314,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flechtwerk", extras = ["mqtt", "secrets"], specifier = "==0.18.1" },
+    { name = "flechtwerk", extras = ["mqtt", "secrets"], specifier = "==0.19.0" },
     { name = "gtfs-realtime-bindings", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "tzdata", specifier = ">=2024.1" },
@@ -605,22 +604,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
-]
-
-[[package]]
-name = "rocksdict"
-version = "0.3.29"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/47/cfc0753de1e69bbda33b071bcda88f764c09de43c6ecdb45beefeadd9e50/rocksdict-0.3.29-cp314-cp314-macosx_10_14_x86_64.whl", hash = "sha256:449e5edc731018abcf043213ab97ccbbca81ba1c4041454847532c464dd460d2", size = 4046562, upload-time = "2025-12-01T02:23:00.291Z" },
-    { url = "https://files.pythonhosted.org/packages/7e/63/e577b3033fb5e822ca4b7924fcf1cafaf48aa27a1ebed5d18a07991e392f/rocksdict-0.3.29-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:fb12366bf75cb28c9126eec84524a9ba7d1a81934d6fec2b873ed6ed142361e6", size = 3691451, upload-time = "2025-12-01T02:23:01.591Z" },
-    { url = "https://files.pythonhosted.org/packages/d9/20/eb64c36439db85329ef46ccb02bd85562e5d1a090cbc0ea013ae3edcd7e5/rocksdict-0.3.29-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:961012099f10c146da68241af8e098cd7e534b705e7b2f2f629c242449ec2366", size = 4086360, upload-time = "2025-12-01T02:23:03.188Z" },
-    { url = "https://files.pythonhosted.org/packages/f6/9d/c891a3bd6e53eb1be6b36db6c4553ef72233e0b68b049eaffe4c0f0e8e1a/rocksdict-0.3.29-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:56e818b919531f38020cfcd055721361990eb22e5f4fbe64f08ec1708b4e9271", size = 4232136, upload-time = "2025-12-01T02:23:04.363Z" },
-    { url = "https://files.pythonhosted.org/packages/90/d6/43f46cc9039138a04095816aa8c22904e65f3565278116cf3ccdbf9acb51/rocksdict-0.3.29-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:8bd5e4e3863f61e6f6537f6419e20f5d76051e72553a49353fbdc8c81ead0399", size = 4039371, upload-time = "2025-12-01T02:23:05.662Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/d5/8e90cad5e1bc1e05a5125cbf9550fa73194c44599f7b1291a314b1191e5d/rocksdict-0.3.29-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:cb5f0a75a4d490822a4f09a76bc1fee24979c0ae04e0efb2a83aeb8f37457ef9", size = 4221400, upload-time = "2025-12-01T02:23:07.177Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/47/d651488f8827aa5fc1e54575de5c416ce12b08dd2aee5efe1077aa85c6b2/rocksdict-0.3.29-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:372a96002f412121fda7853810baa396f06356c30b90973ed64784318379b41a", size = 5081294, upload-time = "2025-12-01T02:23:08.577Z" },
-    { url = "https://files.pythonhosted.org/packages/6f/1e/0f4372b289ac549541b6546f4f2b0f65aee9640a346b7093c10cc4cdbfc9/rocksdict-0.3.29-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:092a0e6540de764bd196879bf2c93141e073e8f80f1b81a0b8ccb417d3e67cc8", size = 5326033, upload-time = "2025-12-01T02:23:09.862Z" },
-    { url = "https://files.pythonhosted.org/packages/10/09/8335ce02b9cf0f21a750ca4458bc2c052d7bd361057d2f6a0e869bdbeb43/rocksdict-0.3.29-cp314-cp314-win_amd64.whl", hash = "sha256:73ebb2ea670492c22a77b6042980953583cfcb2c62d2699f1afbbecdbe02cc6f", size = 3918558, upload-time = "2025-12-01T02:23:11.598Z" },
 ]
 
 [[package]]
