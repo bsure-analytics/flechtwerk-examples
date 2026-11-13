@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The examples deliberately pin the current flechtwerk release and its
-        # Python floor (3.14) — a single version, not the framework's 3.12–3.14
+        # The examples deliberately pin the current flechtwerk release and the
+        # current Python (3.15) — a single version, not the framework's 3.12–3.15
         # support matrix.
         python-version: ${{ fromJson(inputs.python-versions) }}
 name: Reusable Test Workflow
@@ -32,4 +32,4 @@ on:
     inputs:
       python-versions:
         type: string
-        default: '["3.14"]'
+        default: '["3.15"]'

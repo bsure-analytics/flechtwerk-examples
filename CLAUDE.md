@@ -75,7 +75,7 @@ Stages run **on the host** (`uv run poe run-<example>`) and connect to
 
 - `flechtwerk` is pinned to an **exact** version in `pyproject.toml`
   (`flechtwerk[mqtt]==X.Y.Z`), never a path/git dependency, with the full
-  resolution in `uv.lock`. `requires-python = "==3.14.*"` — one version, not a
+  resolution in `uv.lock`. `requires-python = "==3.15.*"` — one version, not a
   range (the framework supports 3.12+; the examples pin the current release).
 - Docker images are pinned to **specific** tags (no `:latest`).
 - To upgrade: bump the pin, `uv lock`, bump image tags, then re-verify — the
