@@ -73,6 +73,12 @@ And two things worth seeing in the numbers:
 - **Gross vs. net.** Both venues charge the same parabolic taker fee `rate · p · (1 − p)`,
   peaking at `p = 0.5`. A visible *gross* edge is routinely smaller than the fees, so the
   **net** edge is what a signal is made of — see the worked example below.
+- **Exact decimals.** Both venues send prices and sizes as decimal strings, and every price,
+  size, rate and edge here is a Flechtwerk `DECIMAL` attribute, so the math runs on
+  `decimal.Decimal`: `1 − (0.69 + 0.30)` is exactly `0.01`, not `0.010000000000000009`, and a
+  break-even pair nets exactly `0` rather than a float crumb that could fire a signal. On the
+  wire these fields are canonical decimal strings (`"net_edge": "0.171200"`, scale kept);
+  ClickHouse casts them to `Float64` for the board, and the exact string stays in `payload`.
 
 ## A worked example (captured live, 2026-07-23)
 
@@ -112,7 +118,8 @@ Both venues expose **keyless, read-only** market data (no API key, no auth for r
 taker fee is `round_up(0.07 · C · p · (1 − p))` per order. The radar models the smooth
 per-contract rate (Kalshi's per-order cent-rounding is a small real-world discrepancy we do
 not model); the rate rides on each quote (module default or a per-pair config override), so
-the math stays a pure function of its inputs.
+the math stays a pure function of its inputs. An override on an `odds-pairs` record is a
+decimal string, like every price: `"polymarket_fee_rate": "0.04"`, not `0.04`.
 
 **Finding and requesting pairs.** A *pair* is your curated claim that one Polymarket market
 and one Kalshi market resolve the *same* event, with `yes_outcome` naming the Polymarket

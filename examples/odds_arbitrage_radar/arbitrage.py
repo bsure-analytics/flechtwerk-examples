@@ -19,9 +19,12 @@ Two things make it honest:
   the smooth per-contract rate and note the rounding in the README.)
 
 Everything here is a pure function of prices, sizes, and rates — no clock, no I/O — so the
-whole module is driven directly by ``tests/logic_test.py``.
+whole module is driven directly by ``tests/logic_test.py``. The arithmetic is ``Decimal``
+throughout: prices arrive as decimal strings, so the sums, products and differences here are
+exact, and the sign of a net edge is never decided by a binary-float rounding error.
 """
 from dataclasses import dataclass
+from decimal import Decimal
 
 POLYMARKET_YES = "polymarket_yes+kalshi_no"
 """Direction 1: buy YES on Polymarket, NO on Kalshi."""
@@ -29,13 +32,13 @@ KALSHI_YES = "kalshi_yes+polymarket_no"
 """Direction 2: buy YES on Kalshi, NO on Polymarket."""
 
 
-def fee(price: float, rate: float) -> float:
+def fee(price: Decimal, rate: Decimal) -> Decimal:
     """The per-contract taker fee at ``price`` under ``rate`` — ``rate · p · (1 − p)``.
 
     Symmetric about 0.5 (where it peaks) and zero at ``p ∈ {0, 1}``: a near-certain contract
     is nearly free to trade, a coin-flip is dearest. Both venues share this shape; only the
     ``rate`` differs (and rides on the quote, so it is passed in, never assumed)."""
-    return rate * price * (1.0 - price)
+    return rate * price * (1 - price)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,29 +50,29 @@ class Quote:
     that needs a missing ask simply isn't computed."""
     venue: str
     title: str
-    fee_rate: float
-    yes_ask: float | None
-    no_ask: float | None
-    yes_ask_size: float | None
-    no_ask_size: float | None
+    fee_rate: Decimal
+    yes_ask: Decimal | None
+    no_ask: Decimal | None
+    yes_ask_size: Decimal | None
+    no_ask_size: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)
 class Margin:
     """One direction's arbitrage economics, per $1 payout."""
     direction: str
-    yes_ask: float
-    no_ask: float
-    gross_edge: float
-    fees: float
-    net_edge: float
-    executable_size: float | None
+    yes_ask: Decimal
+    no_ask: Decimal
+    gross_edge: Decimal
+    fees: Decimal
+    net_edge: Decimal
+    executable_size: Decimal | None
 
 
-def _margin(direction: str, yes_ask: float, yes_rate: float, yes_size: float | None,
-            no_ask: float, no_rate: float, no_size: float | None) -> Margin:
+def _margin(direction: str, yes_ask: Decimal, yes_rate: Decimal, yes_size: Decimal | None,
+            no_ask: Decimal, no_rate: Decimal, no_size: Decimal | None) -> Margin:
     """Assemble one direction's ``Margin`` from its two legs' asks, rates, and sizes."""
-    gross_edge = 1.0 - (yes_ask + no_ask)
+    gross_edge = 1 - (yes_ask + no_ask)
     fees = fee(yes_ask, yes_rate) + fee(no_ask, no_rate)
     executable_size = min(yes_size, no_size) if yes_size is not None and no_size is not None else None
     return Margin(direction, yes_ask, no_ask, gross_edge, fees, gross_edge - fees, executable_size)

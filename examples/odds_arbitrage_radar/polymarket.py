@@ -28,6 +28,7 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from decimal import Decimal
 from email.utils import parsedate_to_datetime
 
 import httpx
@@ -64,23 +65,23 @@ for tests via ``PolymarketQuotes(gamma_base_url=…)``."""
 CLOB_BASE_URL = "https://clob.polymarket.com"
 """Polymarket's CLOB order-book API (no auth, no key for reads). Injectable like Gamma."""
 
-DEFAULT_FEE_RATE = 0.05
+DEFAULT_FEE_RATE = Decimal("0.05")
 """Polymarket's taker-fee rate for **sports** markets (the demo's staple). Polymarket's rate
 is category-dependent — 0.00 (geopolitics), 0.04 (finance/politics), 0.05 (sports/culture/
 weather/economics), 0.07 (crypto) — so override it per pair with ``polymarket_fee_rate``
 when a pair is not a sports market. Makers pay nothing; the radar models the taker cost."""
 
 
-def best_of_book(levels: list[dict], *, side: str) -> tuple[float, float] | None:
+def best_of_book(levels: list[dict], *, side: str) -> tuple[Decimal, Decimal] | None:
     """Best (price, size) on one side of a CLOB book — ``max`` price for bids, ``min`` for
     asks — or ``None`` if the side is empty. Pure.
 
     CLOB levels are ``{"price": str, "size": str}`` in no guaranteed order, so we reduce over
-    the whole list rather than trusting position. "Best" is the price a taker meets first:
+    the whole list rather than trusting position. The strings become ``Decimal`` exactly. "Best" is the price a taker meets first:
     the highest someone will buy at (bid) or the lowest someone will sell at (ask)."""
     if not levels:
         return None
-    priced = [(float(l["price"]), float(l["size"])) for l in levels]
+    priced = [(Decimal(l["price"]), Decimal(l["size"])) for l in levels]
     return max(priced) if side == "bid" else min(priced)
 
 
@@ -115,7 +116,7 @@ def polymarket_status(market: dict) -> str:
 
 
 def normalize_polymarket(market: dict, books: dict[str, dict], *, yes_outcome: str,
-                         fee_rate: float, pair_key: str, fetched_at: datetime) -> Event:
+                         fee_rate: Decimal, pair_key: str, fetched_at: datetime) -> Event:
     """Project Gamma metadata + the two CLOB books into one normalized quote ``Event`` — pure.
 
     ``books`` maps token id → its ``/book`` response. Picks the YES/NO tokens by outcome,
@@ -176,7 +177,7 @@ class PolymarketQuotes(Extractor):
         assert self._client is not None, "client is opened in __aenter__ or injected"
         slug = config[POLYMARKET_SLUG]
         yes_outcome = config[YES_OUTCOME]
-        # Explicit None check, not `or`: a legitimate 0.0 override (geopolitics markets are
+        # Explicit None check, not `or`: a legitimate 0 override (geopolitics markets are
         # fee-free) is falsy and must not fall through to the default.
         fee_rate = config.get(POLYMARKET_FEE_RATE)
         if fee_rate is None:

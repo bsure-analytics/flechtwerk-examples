@@ -32,9 +32,10 @@ is pure and I/O-free — the logic tier drives every branch.
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from flechtwerk import Event, IncomingMessage, Message, State, transformer
-from flechtwerk.attribute import DATETIME
+from flechtwerk.attribute import DATETIME, DECIMAL
 
 from .arbitrage import Quote, compute_margins
 from .attributes import (
@@ -78,34 +79,39 @@ STALE_AFTER = timedelta(minutes=5)
 each other. At the 30 s poll cadence that is ~10 polls — generous enough to tolerate a poll
 hiccup, tight enough that a wedged extractor's frozen quotes stop signalling quickly."""
 
-MIN_EDGE = 0.0
-"""Net-edge threshold for a signal. ``0.0`` = "any profit after fees". Raise it to demand a
+MIN_EDGE = Decimal(0)
+"""Net-edge threshold for a signal. ``0`` = "any profit after fees" — exactly: the math is
+``Decimal``, so a break-even pair nets ``0``, not a float crumb above it. Raise it to demand a
 margin of safety (slippage, the resolution-mismatch risk the README warns about)."""
 
 
 def _leg(value: Event) -> dict:
     """The ``LEGS`` entry for one venue's quote: just the fields the margin math needs.
 
-    Stores asks, ask sizes, fee rate, and title; ``fetched_at`` as its DATETIME-encoded ISO
-    string (a State nests only JSON scalars). An absent ask/size is simply not stored."""
+    Stores title, ``fetched_at`` as its DATETIME-encoded ISO string, and the fee rate, asks
+    and ask sizes as DECIMAL-encoded strings (a State nests only JSON scalars, and ``ANY``
+    refuses a ``Decimal``). An absent ask/size is simply not stored."""
     entry: dict[str, object] = {
-        L_FEE_RATE: value[FEE_RATE],
+        L_FEE_RATE: DECIMAL.encode(value[FEE_RATE]),
         L_TITLE: value[TITLE],
         L_FETCHED_AT: DATETIME.encode(value[FETCHED_AT]),
     }
     for attr, key in ((YES_ASK, L_YES_ASK), (NO_ASK, L_NO_ASK),
                       (YES_ASK_SIZE, L_YES_ASK_SIZE), (NO_ASK_SIZE, L_NO_ASK_SIZE)):
         if (v := value.get(attr)) is not None:
-            entry[key] = v
+            entry[key] = DECIMAL.encode(v)
     return entry
 
 
 def _quote(venue: str, entry: dict) -> Quote:
     """Reconstruct an ``arbitrage.Quote`` from a stored ``LEGS`` entry."""
+    def dec(key: str) -> Decimal | None:
+        return None if (raw := entry.get(key)) is None else DECIMAL.decode(raw)
+
     return Quote(
-        venue=venue, title=entry.get(L_TITLE, ""), fee_rate=entry[L_FEE_RATE],
-        yes_ask=entry.get(L_YES_ASK), no_ask=entry.get(L_NO_ASK),
-        yes_ask_size=entry.get(L_YES_ASK_SIZE), no_ask_size=entry.get(L_NO_ASK_SIZE),
+        venue=venue, title=entry.get(L_TITLE, ""), fee_rate=DECIMAL.decode(entry[L_FEE_RATE]),
+        yes_ask=dec(L_YES_ASK), no_ask=dec(L_NO_ASK),
+        yes_ask_size=dec(L_YES_ASK_SIZE), no_ask_size=dec(L_NO_ASK_SIZE),
     )
 
 
@@ -153,7 +159,7 @@ async def run_radar(state: State, msg: IncomingMessage) -> AsyncIterator[Message
                                     fresh=fresh, computed_at=trigger_fetched)
             yield Message(key=msg.key, topic=MARGINS_TOPIC, value=record)
             if fresh and margin.net_edge > MIN_EDGE:
-                log.info("SIGNAL %s %s: net_edge=%.4f", msg.key, margin.direction, margin.net_edge)
+                log.info("SIGNAL %s %s: net_edge=%s", msg.key, margin.direction, margin.net_edge)
                 yield Message(key=msg.key, topic=SIGNALS_TOPIC, value=record)
 
     yield State({LEGS: legs})

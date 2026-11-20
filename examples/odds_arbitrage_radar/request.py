@@ -23,6 +23,7 @@ Read-only: this validates and writes a config record. It never places an order.
 import asyncio
 import json
 import sys
+from decimal import Decimal
 
 import httpx
 from aiokafka import AIOKafkaProducer
@@ -56,7 +57,7 @@ from .polymarket import (
 
 BOOTSTRAP_SERVERS = "localhost:9092"
 
-SANITY_EDGE = 0.03
+SANITY_EDGE = Decimal("0.03")
 """A resting net edge above this is almost certainly a flipped ``yes_outcome`` mapping, not a
 real 3 %+ risk-free arb sitting unclaimed on two public venues. Warn, don't block — a genuine
 in-game spike can briefly clear it, and the operator may know better."""

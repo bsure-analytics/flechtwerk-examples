@@ -9,8 +9,11 @@ framework's "declare only what you compute with" rule is about not re-declaring 
 you don't own; here we own the whole schema.
 
 Prices are dollars per $1 payout (a binary contract settles at $1 or $0), so every price
-is a probability-like ``FLOAT`` in ``(0, 1)``. Sizes are contract counts (``FLOAT`` — the
-venues report fractional sizes). The authoritative **event time** is ``FETCHED_AT`` — the
+is a probability-like ``DECIMAL`` in ``(0, 1)``. Sizes are contract counts (``DECIMAL`` — the
+venues report fractional sizes). Both venues send prices and sizes as decimal *strings*, so
+they stay ``Decimal`` end to end: ``1 − (0.69 + 0.30)`` is exactly ``0.01``, never
+``0.010000000000000009``, and a break-even pair nets exactly zero instead of a float crumb
+that could fire a signal. The authoritative **event time** is ``FETCHED_AT`` — the
 server ``Date`` at the poll that produced the record — never a wall-clock read inside a
 stage, so every code path stays drivable from the logic tier. Timestamps are aware-UTC
 ``datetime``s at the typed edge (the ``DATETIME`` codec renders ISO-8601, which ClickHouse
@@ -18,7 +21,7 @@ ingests directly).
 """
 from typing import Final
 
-from flechtwerk.attribute import ANY, Attribute, BOOL, DATETIME, DICT, FLOAT, STR
+from flechtwerk.attribute import ANY, DECIMAL, Attribute, BOOL, DATETIME, DICT, STR
 
 # --- Topics (the wire contract; both extractors and the transformer share it) ---
 
@@ -56,11 +59,11 @@ YES_OUTCOME: Final = Attribute("yes_outcome", STR)
 SAME event as Kalshi's YES side — e.g. ``"Milwaukee Brewers"`` when the Kalshi market is
 "Colorado vs Milwaukee Winner? / Milwaukee". This is the cross-venue entity resolution the
 **user** curates; getting it backwards inverts every margin (see ``request.py``'s guard)."""
-POLYMARKET_FEE_RATE: Final = Attribute("polymarket_fee_rate", FLOAT, optional=True)
+POLYMARKET_FEE_RATE: Final = Attribute("polymarket_fee_rate", DECIMAL, optional=True)
 """Optional per-pair override of the Polymarket taker-fee rate. Absent → the extractor's
 module default (``polymarket.DEFAULT_FEE_RATE``, the sports rate). Polymarket's rate varies
 by category (0.00 geopolitics … 0.07 crypto); override when a pair is not a sports market."""
-KALSHI_FEE_RATE: Final = Attribute("kalshi_fee_rate", FLOAT, optional=True)
+KALSHI_FEE_RATE: Final = Attribute("kalshi_fee_rate", DECIMAL, optional=True)
 """Optional per-pair override of the Kalshi taker-fee rate. Absent → the extractor's module
 default (``kalshi.DEFAULT_FEE_RATE``, the general-markets 0.07)."""
 
@@ -81,25 +84,25 @@ TITLE: Final = Attribute("title", STR)
 STATUS: Final = Attribute("status", STR)
 """Normalized market status: ``active`` (tradeable) or ``closed`` (settled, halted, or no
 longer accepting orders). A ``closed`` quote tombstones the pair's radar join state."""
-YES_BID: Final = Attribute("yes_bid", FLOAT, optional=True)
+YES_BID: Final = Attribute("yes_bid", DECIMAL, optional=True)
 """Best bid on the YES side ($/contract) — carried for the dashboard, not used in the arb
 math (arbitrage buys at the *ask*). Absent when that side of the book is empty."""
-YES_ASK: Final = Attribute("yes_ask", FLOAT, optional=True)
+YES_ASK: Final = Attribute("yes_ask", DECIMAL, optional=True)
 """Best ask on the YES side ($/contract) — the price to BUY one YES contract. Absent when
 the ask side is empty (a one-sided book). Reused on the margin record as the ask paid on
 that direction's YES leg."""
-NO_BID: Final = Attribute("no_bid", FLOAT, optional=True)
+NO_BID: Final = Attribute("no_bid", DECIMAL, optional=True)
 """Best bid on the NO side ($/contract) — dashboard only. Absent when that side is empty."""
-NO_ASK: Final = Attribute("no_ask", FLOAT, optional=True)
+NO_ASK: Final = Attribute("no_ask", DECIMAL, optional=True)
 """Best ask on the NO side ($/contract) — the price to BUY one NO contract. Absent when the
 ask side is empty. Reused on the margin record as the ask paid on that direction's NO leg."""
-YES_ASK_SIZE: Final = Attribute("yes_ask_size", FLOAT, optional=True)
+YES_ASK_SIZE: Final = Attribute("yes_ask_size", DECIMAL, optional=True)
 """Contracts available at ``YES_ASK`` — how much of the YES leg is executable at that price.
 Absent when ``YES_ASK`` is."""
-NO_ASK_SIZE: Final = Attribute("no_ask_size", FLOAT, optional=True)
+NO_ASK_SIZE: Final = Attribute("no_ask_size", DECIMAL, optional=True)
 """Contracts available at ``NO_ASK``. For Kalshi this is the *crosswise* size (the NO book
 is the YES book viewed from the other side; see ``kalshi.normalize_kalshi``)."""
-FEE_RATE: Final = Attribute("fee_rate", FLOAT)
+FEE_RATE: Final = Attribute("fee_rate", DECIMAL)
 """The venue's taker-fee rate for this pair, stamped by the extractor (config override or
 module default). It rides on the quote so the radar's fee math stays a pure function of its
 inputs — never an environment or clock read."""
@@ -115,16 +118,16 @@ DIRECTION: Final = Attribute("direction", STR)
 """Which cross-venue leg pairing this margin is for: ``polymarket_yes+kalshi_no`` (buy YES
 on Polymarket, NO on Kalshi) or ``kalshi_yes+polymarket_no`` (see ``arbitrage``). The two
 directions price independently — books are not symmetric — so each is its own record."""
-GROSS_EDGE: Final = Attribute("gross_edge", FLOAT)
+GROSS_EDGE: Final = Attribute("gross_edge", DECIMAL)
 """``1 − (yes_ask + no_ask)`` for this direction: the guaranteed profit per $1 payout BEFORE
 fees. Positive means the two legs together cost less than the $1 exactly one of them pays."""
-FEES: Final = Attribute("fees", FLOAT)
+FEES: Final = Attribute("fees", DECIMAL)
 """Combined taker fees for one contract on each leg, per the parabolic ``rate·p·(1−p)``
 formula (see ``arbitrage.fee``) — what stands between the gross edge and real money."""
-NET_EDGE: Final = Attribute("net_edge", FLOAT)
+NET_EDGE: Final = Attribute("net_edge", DECIMAL)
 """``gross_edge − fees``: the profit per $1 payout after fees. A *fresh* positive net edge
 is an arbitrage signal. Routinely negative even when gross is positive — the demo's point."""
-EXECUTABLE_SIZE: Final = Attribute("executable_size", FLOAT, optional=True)
+EXECUTABLE_SIZE: Final = Attribute("executable_size", DECIMAL, optional=True)
 """``min`` of the two legs' ask sizes — how many contract-pairs the edge is actually good
 for at top-of-book. Absent when either leg's size is unknown (depth beyond top-of-book is
 out of scope). The margin is real but its scale is unquantified."""
@@ -141,13 +144,16 @@ Derived from event time, never wall-clock, so the logic tier drives it determini
 
 LEGS: Final = Attribute("legs", DICT(DICT(ANY)))
 """The pair's accumulating join state: one entry per venue that has quoted, holding just the
-fields the margin math needs (asks, ask sizes, fee rate, title, fetched-at ISO string).
+fields the margin math needs (asks, ask sizes, fee rate as decimal strings, title, fetched-at
+ISO string).
 Carried forward across quotes and cleared (tombstoned) when either venue reports the market
 closed — like SMARD's ``CONTRIBUTIONS`` bucket, bounded by the market's lifecycle."""
 
 # Raw keys inside a LEGS entry (read at the compute site, not declared as attributes — they
 # live inside the DICT(DICT(ANY)) and never collide with ours). fetched_at is stored as its
-# DATETIME-encoded ISO string (a State nests only JSON scalars, so it round-trips as text).
+# DATETIME-encoded ISO string and every price, size and rate as its DECIMAL-encoded string
+# (a State nests only JSON scalars, and ANY never infers a Decimal, so both round-trip as
+# text through their codec).
 L_YES_ASK: Final = "yes_ask"
 L_NO_ASK: Final = "no_ask"
 L_YES_ASK_SIZE: Final = "yes_ask_size"

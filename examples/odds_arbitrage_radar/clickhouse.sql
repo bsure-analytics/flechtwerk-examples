@@ -11,7 +11,9 @@
 -- (`kafka_format = 'JSONAsObject'`); the materialized views PROMOTE the columns the Grafana
 -- board reads into typed columns and keep the whole message in a `payload JSON` catch-all,
 -- so a field we don't promote today is still queryable as `payload.<field>` with no DDL
--- change. Optional prices/sizes are `Nullable(Float64)`: an absent JSON subcolumn cast to
+-- change. Prices, sizes, rates and edges arrive as exact decimal strings (the DECIMAL codec);
+-- the casts below parse them into Float64 for the board, while `payload` keeps the exact
+-- string. Optional prices/sizes are `Nullable(Float64)`: an absent JSON subcolumn cast to
 -- `::Nullable(Float64)` returns NULL, never a fabricated 0 (the SMARD rule) — a one-sided
 -- book reads as NULL, not as a $0 ask.
 --

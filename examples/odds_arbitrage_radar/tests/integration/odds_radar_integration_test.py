@@ -13,6 +13,7 @@ against a real server.
 import asyncio
 import json
 from contextlib import suppress
+from decimal import Decimal as D
 from datetime import datetime, timezone
 
 import httpx
@@ -50,12 +51,12 @@ _T = datetime(2026, 7, 23, 20, 16, tzinfo=UTC)
 
 
 def _quote(venue: str, *, yes_ask=None, no_ask=None, yes_size=None, no_size=None,
-           fee_rate=0.05) -> bytes:
+           fee_rate="0.05") -> bytes:
     ev = Event({KIND: "quote", PAIR_KEY: PAIR, VENUE: venue, TITLE: "Col @ Mil",
-                STATUS: "active", FEE_RATE: fee_rate, FETCHED_AT: _T})
+                STATUS: "active", FEE_RATE: D(fee_rate), FETCHED_AT: _T})
     for attr, v in ((YES_ASK, yes_ask), (NO_ASK, no_ask), (YES_ASK_SIZE, yes_size), (NO_ASK_SIZE, no_size)):
         if v is not None:
-            ev[attr] = v
+            ev[attr] = D(v)
     return json.dumps(ev.raw).encode()
 
 
@@ -81,9 +82,9 @@ async def test_radar_join_over_the_broker(kafka_bootstrap: str) -> None:
         # Two same-pair quotes (contrived to a fresh net-positive arb): Polymarket YES @ 0.40,
         # Kalshi NO @ 0.40 → gross 0.20, well clear of fees.
         key = PAIR.encode()
-        await producer.send_and_wait(QUOTES_TOPIC, key=key, value=_quote("polymarket", yes_ask=0.40, yes_size=100.0))
+        await producer.send_and_wait(QUOTES_TOPIC, key=key, value=_quote("polymarket", yes_ask="0.40", yes_size="100.0"))
         await asyncio.sleep(1.0)
-        await producer.send_and_wait(QUOTES_TOPIC, key=key, value=_quote("kalshi", no_ask=0.40, no_size=250.0, fee_rate=0.07))
+        await producer.send_and_wait(QUOTES_TOPIC, key=key, value=_quote("kalshi", no_ask="0.40", no_size="250.0", fee_rate="0.07"))
 
         margins: list[dict] = []
         signals: list[dict] = []
@@ -97,9 +98,9 @@ async def test_radar_join_over_the_broker(kafka_bootstrap: str) -> None:
                 for r in records:
                     (signals if tp.topic == SIGNALS_TOPIC else margins).append(json.loads(r.value))
 
-        assert margins and margins[0]["net_edge"] > 0
+        assert margins and D(margins[0]["net_edge"]) > 0
         assert margins[0]["direction"] == "polymarket_yes+kalshi_no"
-        assert signals[0]["fresh"] is True and signals[0]["net_edge"] == pytest.approx(0.20 - (0.05 * 0.4 * 0.6 + 0.07 * 0.4 * 0.6))
+        assert signals[0]["fresh"] is True and signals[0]["net_edge"] == "0.171200"  # 0.20 − (0.05·0.4·0.6 + 0.07·0.4·0.6): exact, scale kept
     finally:
         task.cancel()
         with suppress(asyncio.CancelledError):

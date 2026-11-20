@@ -11,7 +11,7 @@ resting order, seen from the NO side), and the size at ``no_bid`` is ``yes_ask_s
 For arbitrage we buy at the ask, so we keep ``yes_ask`` with ``yes_ask_size_fp`` and
 ``no_ask`` with the crosswise ``yes_bid_size_fp``.
 
-Prices come as dollar **strings** (``"0.7600"``); ``float()`` them. A side with no resting
+Prices come as dollar **strings** (``"0.7600"``); ``Decimal()`` them, exactly. A side with no resting
 order reports ``"0.0000"`` — treated as *absent* (a $0 ask is not a real offer), so that
 side contributes no ask/size, exactly like Polymarket's empty book.
 
@@ -23,6 +23,7 @@ same config record), not the ticker, so both venues' quotes co-partition onto on
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from decimal import Decimal
 from email.utils import parsedate_to_datetime
 
 import httpx
@@ -57,30 +58,30 @@ BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 """Kalshi's public trade API (no auth for market-data reads; ~30 req/s public limit). The
 demo constant; injectable for tests via ``KalshiQuotes(base_url=…)``."""
 
-DEFAULT_FEE_RATE = 0.07
+DEFAULT_FEE_RATE = Decimal("0.07")
 """Kalshi's general-markets taker-fee rate (``fee = round_up(0.07 · C · p · (1−p))``). Some
 series differ; override per pair with ``kalshi_fee_rate``. We model the smooth per-contract
 rate and note Kalshi's per-order cent-rounding in the README. Makers can earn rebates on
 some series; the radar models the taker cost only."""
 
 
-def _price(raw: str | None) -> float | None:
-    """A Kalshi dollar-string → float, or ``None`` for the ``"0.0000"`` no-liquidity sentinel.
+def _price(raw: str | None) -> Decimal | None:
+    """A Kalshi dollar-string → ``Decimal``, or ``None`` for the ``"0.0000"`` no-liquidity sentinel.
 
     A resting price is in ``(0, 1]``; Kalshi reports ``0.0000`` when a side has no order, so
     a non-positive parse means "absent", not "free" — never fabricate a $0 ask."""
     if raw is None:
         return None
-    price = float(raw)
-    return price if price > 0.0 else None
+    price = Decimal(raw)
+    return price if price > 0 else None
 
 
-def _size(raw: str | None) -> float | None:
-    """A Kalshi size-string → float (``None`` if absent)."""
-    return None if raw is None else float(raw)
+def _size(raw: str | None) -> Decimal | None:
+    """A Kalshi size-string → ``Decimal`` (``None`` if absent)."""
+    return None if raw is None else Decimal(raw)
 
 
-def normalize_kalshi(market: dict, *, fee_rate: float, pair_key: str, fetched_at: datetime) -> Event:
+def normalize_kalshi(market: dict, *, fee_rate: Decimal, pair_key: str, fetched_at: datetime) -> Event:
     """Project a Kalshi market object into one normalized quote ``Event`` — pure.
 
     Keeps YES/NO best bid and ask, the YES ask size, and the **crosswise** NO ask size
@@ -140,7 +141,7 @@ class KalshiQuotes(Extractor):
         assert self._client is not None, "client is opened in __aenter__ or injected"
         pair_key = config[POLYMARKET_SLUG]
         ticker = config[KALSHI_TICKER]
-        # Explicit None check, not `or`: a 0.0 override is falsy and must not fall through.
+        # Explicit None check, not `or`: a 0 override is falsy and must not fall through.
         fee_rate = config.get(KALSHI_FEE_RATE)
         if fee_rate is None:
             fee_rate = DEFAULT_FEE_RATE

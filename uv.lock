@@ -176,28 +176,28 @@ wheels = [
 
 [[package]]
 name = "flechtctl"
-version = "0.19.0"
+version = "0.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "joserfc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/a6/51c15241bc8bd2f4bbbbfb6e8c08e254db8891789f701324082d9591f7a2/flechtctl-0.19.0.tar.gz", hash = "sha256:842dd31a2b669c175e23b3ffe8f7d78e2f7fe41159d0c6bcdd4346d842ce5807", size = 35094, upload-time = "2026-11-12T21:46:36.299Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/64/cb3342dc312debdf59befc91dba13072d4fe897e652e5902e855f1d74b79/flechtctl-0.20.0.tar.gz", hash = "sha256:edab92890b0afb00a143a9022b8333755a1194a098af74654b257088c9e81363", size = 35283, upload-time = "2026-11-20T20:42:44.556Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/fc/d8a9817c15ef81a185dee57abf991b628cc5d254b7d10dc3e7894eeb0229/flechtctl-0.19.0-py3-none-any.whl", hash = "sha256:150b280335d59e54ccaff1c8f7f43d34129ecdae2b16af3cf255ca20871689c6", size = 24759, upload-time = "2026-11-12T21:46:34.015Z" },
+    { url = "https://files.pythonhosted.org/packages/19/ba/e61173ef4feb3ccef49f42dcff8321853099bb401fb03a55b5e9b66aed0c/flechtctl-0.20.0-py3-none-any.whl", hash = "sha256:288aec5699475803f905083a8642486d5feb1e10d2d5fe43d5787bb1903157c9", size = 24760, upload-time = "2026-11-20T20:42:42.55Z" },
 ]
 
 [[package]]
 name = "flechtwerk"
-version = "0.19.0"
+version = "0.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiokafka" },
     { name = "prometheus-client" },
     { name = "reactor-di" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/a5/8c2f9f12bae003b491b5bedcf965f05fb5ea1c9e221c20531422c87d23b9/flechtwerk-0.19.0.tar.gz", hash = "sha256:fc43e257db6a49768489678213f1514f0197f7aa12e8f6372d5240d8bfc7a0c9", size = 798630, upload-time = "2026-11-12T21:46:37.315Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/06/d37b33138b8dad46d6ed46c9985aec45acffc80b1581e06d039ed19c0beb/flechtwerk-0.20.0.tar.gz", hash = "sha256:03b14a70c948021fd56f28a220efa5e4982d2897887cd8e3cf4f1c595dc17f07", size = 805427, upload-time = "2026-11-20T20:42:45.395Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/30/d9dfaf068d6775797b52d8eeef0bbc9185b643b6dfa9294c3fd4a8bcc465/flechtwerk-0.19.0-py3-none-any.whl", hash = "sha256:1bd2e4a7bc6b09281ec580d666a2d6cb95ad91ff5119a16e400e098613d36f14", size = 121510, upload-time = "2026-11-12T21:46:34.995Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/32/ddb4a30d31866c184f1c5e97191b55ffe62a45af389f0535af938bf9aaac/flechtwerk-0.20.0-py3-none-any.whl", hash = "sha256:4dac9ec84ec2d6242e80b86c716551181c249a7e051cc046365c44c961dbea36", size = 122811, upload-time = "2026-11-20T20:42:43.645Z" },
 ]
 
 [package.optional-dependencies]
@@ -231,7 +231,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flechtwerk", extras = ["mqtt", "secrets"], specifier = "==0.19.0" },
+    { name = "flechtwerk", extras = ["mqtt", "secrets"], specifier = "==0.20.0" },
     { name = "gtfs-realtime-bindings", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "tzdata", specifier = ">=2024.1" },

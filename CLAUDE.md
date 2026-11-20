@@ -226,6 +226,13 @@ stream, the credential encrypted on the config topic).
   `Payload` and skip the field framing; weigh base64's 4/3 inflation against
   Kafka's ~1 MiB record ceiling either way. A digest or a short id stays hex —
   it's an identifier, and hex reads in Kafbat and ClickHouse.
+- **Exact fractions in a record go through `DECIMAL`** (0.20.0+) — a `Decimal` on
+  the wire as a canonical fixed-point string, never a JSON number; scale is kept and
+  nothing is rounded. `odds_arbitrage_radar` is the user: both venues send prices and
+  sizes as decimal strings, so every price, size, rate and edge is `DECIMAL` and the
+  arb math runs on `Decimal` (the `LEGS` state stores them `DECIMAL.encode`d, since
+  `ANY` refuses a `Decimal`). Measurements a source sends as JSON numbers (SMARD's
+  MWh, sensor readings) stay `FLOAT` — `json.loads` has already made them floats.
 - **A config topic has a sanctioned write direction** (0.9.4+) — a stage may declare
   a config topic *and* yield a `Message` naming it; the write rides the task
   transaction like any other output, and the group-less config consumer's

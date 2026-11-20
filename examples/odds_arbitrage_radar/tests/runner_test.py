@@ -14,6 +14,7 @@ whose ``Date`` header (the event-time clock) the test controls:
 """
 import asyncio
 import json
+from decimal import Decimal as D
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
@@ -142,7 +143,7 @@ async def test_polymarket_poll_emits_one_quote_keyed_by_pair() -> None:
     assert len(quotes) == 1
     q = quotes[0]                                               # a plain JSON dict → wire-name keys
     assert q["kind"] == "quote" and q["venue"] == "polymarket" and q["pair_key"] == PAIR
-    assert q["yes_ask"] == 0.69 and q["no_ask"] == 0.32        # YES = Milwaukee book
+    assert q["yes_ask"] == "0.69" and q["no_ask"] == "0.32"        # YES = Milwaukee book
     keys = {p["key"].decode() for t, p in producer.sent if t == QUOTES_TOPIC}
     assert keys == {PAIR}                                       # keyed by the pair, not the token
 
@@ -168,7 +169,7 @@ async def test_kalshi_poll_emits_one_quote_keyed_by_pair() -> None:
     assert len(quotes) == 1
     q = quotes[0]                                               # a plain JSON dict → wire-name keys
     assert q["venue"] == "kalshi" and q["pair_key"] == PAIR     # pair key = slug, not ticker
-    assert q["yes_ask"] == 0.76 and q["no_ask"] == 0.30 and q["no_ask_size"] == 997.0
+    assert q["yes_ask"] == "0.7600" and q["no_ask"] == "0.3000" and q["no_ask_size"] == "997.00"
 
 
 async def test_kalshi_poll_raises_on_unknown_ticker() -> None:
@@ -202,29 +203,29 @@ async def _process(mod: _FlechtwerkModule) -> None:
 
 
 def _quote(venue: str, *, yes_ask=None, no_ask=None, yes_size=None, no_size=None,
-           fee_rate=0.05, status="active", fetched_at=_T) -> str:
+           fee_rate="0.05", status="active", fetched_at=_T) -> str:
     ev = Event({KIND: "quote", PAIR_KEY: PAIR, VENUE: venue, TITLE: "Col @ Mil",
-                STATUS: status, FEE_RATE: fee_rate, FETCHED_AT: fetched_at})
+                STATUS: status, FEE_RATE: D(fee_rate), FETCHED_AT: fetched_at})
     for attr, v in ((YES_ASK, yes_ask), (NO_ASK, no_ask), (YES_ASK_SIZE, yes_size), (NO_ASK_SIZE, no_size)):
         if v is not None:
-            ev[attr] = v
+            ev[attr] = D(v)
     return json.dumps(ev.raw)
 
 
 async def test_radar_batch_emits_margin_and_signal_then_tombstones() -> None:
     # Batch 1: a Polymarket then a Kalshi quote for the pair — a contrived fresh arb.
     mod = _make_module([
-        make_record(key=PAIR, value=_quote("polymarket", yes_ask=0.40, yes_size=100.0),
+        make_record(key=PAIR, value=_quote("polymarket", yes_ask="0.40", yes_size="100.0"),
                     topic=QUOTES_TOPIC, offset=0),
-        make_record(key=PAIR, value=_quote("kalshi", no_ask=0.40, no_size=250.0, fee_rate=0.07),
+        make_record(key=PAIR, value=_quote("kalshi", no_ask="0.40", no_size="250.0", fee_rate="0.07"),
                     topic=QUOTES_TOPIC, offset=1),
     ])
     await _process(mod)
     producer = mod.runner.tasks[0].producer
     margins = _sent(producer, MARGINS_TOPIC)
     signals = _sent(producer, SIGNALS_TOPIC)
-    assert len(margins) == 1 and margins[0]["net_edge"] > 0
-    assert len(signals) == 1 and signals[0]["net_edge"] > 0     # fresh + net-positive
+    assert len(margins) == 1 and D(margins[0]["net_edge"]) > 0
+    assert len(signals) == 1 and D(signals[0]["net_edge"]) > 0     # fresh + net-positive
     stored = await mod.runner.tasks[0].store.get(PAIR)          # a State (Record) → Attribute keys
     assert stored is not None and set(stored[LEGS]) == {"polymarket", "kalshi"}
 
@@ -237,7 +238,7 @@ async def test_radar_batch_emits_margin_and_signal_then_tombstones() -> None:
 
 async def test_radar_single_leg_emits_no_margin() -> None:
     mod = _make_module([
-        make_record(key=PAIR, value=_quote("polymarket", yes_ask=0.40), topic=QUOTES_TOPIC, offset=0),
+        make_record(key=PAIR, value=_quote("polymarket", yes_ask="0.40"), topic=QUOTES_TOPIC, offset=0),
     ])
     await _process(mod)
     producer = mod.runner.tasks[0].producer
